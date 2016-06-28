@@ -1,0 +1,320 @@
+***********************************************************
+Chef Provisioning
+Chapter 3
+Leveraging Roles, Environments, and Policies
+Example Code and References
+***********************************************************
+
+----------------
+Using Chef Roles 
+----------------
+
+How to create a Role
+--------------------
+The format of the create command is:
+knife role create <role_name> [options]
+
+For example to create a “base” Role using default options, you would issue a command like this: 
+knife role create base
+
+Similarly, you can edit an existing role by using the knife command in this format:
+knife role edit <role_name> [options]
+
+For example to edit the “base” Role using default options, you can issue the command:
+knife role edit base
+
+When creating or editing Roles this way, you will get a confirmation message that indicates success, such as “Created role[base]” For example a ruby formatted role file for the “Web Server” Role would be saved as ~/chef-repo/roles/webserver.rb.  
+Once the role file is created, it is then uploaded to the Chef server with an upload command that takes the form of:
+knife role from file <path to the role file> [options]
+
+For example to update the websever Role you would you a command like this:
+knife role from file roles/webserver.rb
+
+Using Per Environment Run Lists in Roles
+----------------------------------------
+Here is a sample Role that uses env_run_lists:
+name 'big_app'
+description 'Big App server role'
+run_list 'role[base]'
+env_run_lists(
+  'production' => ['role[base] \
+                    recipe[app_insall] \
+                    recipe[prod_monitoring]'],
+  'development' => ['role[base] \
+                     recipe[mysql] \
+                     recipe[app_install] \
+                     recipe[load_test_data]'],
+  'stage' => [],
+  '_default' => []
+)
+override_attributes(
+  'base_name' => 'primary',
+  'user_name' => 'prod_svc_acct'
+)
+
+Using Nested Roles
+------------------
+For example a simple web server Role might look like this:
+name 'webserver'
+description 'Simple Web Server'
+run_list 'role[base] recipe[apache]'
+default_attributes(
+  'apache' => {
+    'sites' => {
+      'customers' => {
+        'port' => 8080
+      },
+      'admins' => {
+        'port' => 8081
+      }
+    }
+  }
+)
+
+There is a downside to roles
+----------------------------
+
+References
+----------
+The Chef.io documentation for Roles can be found here: https://docs.chef.io/roles.html
+There is a nice tutorial on using Roles and Environments by Justin Ellingwood that can be found here: https://www.digitalocean.com/community/tutorials/how-to-use-roles-and-environments-in-chef-to-control-server-configurations
+
+-----------------------
+Using Chef environments
+-----------------------
+
+The _default environment
+------------------------
+
+Creating environments
+---------------------
+Here is a sample Environment file for a development environment created using the Ruby format:
+name 'test'
+description 'The test environment for the bigapp project'
+cookbook_versions(
+  'bigapp' => '>= 2.1',
+  'testdata' => '= 2.1.1'
+)
+override_attributes(
+  'bigapp' => {
+    'listen' => ['8080', '4443']
+  },
+  'testdata' => {
+    'testset' => 'customer'
+  }
+)
+
+For example, the test environment file would be saved to ~/chef-repo/environments/test.rb.  The best practice is to name the file using the name of the environment. Once you’ve created the Environment file, you would upload that file to the Chef server with a command in the format:
+knife environment from file <path to environment file> [options]
+
+For example, to upload the test environment you would use the command:
+knife environment from file environments/test.rb
+
+Both the knife environment from file and the knife role from file can be used to upload all of the environments or roles at once if you supply a folder instead of a file name, and use the -a or --all parameter. For example:
+knife environment from file environments/ -a 
+would upload all environment files in the environments folder.
+
+Specifying cookbook versions in environments
+--------------------------------------------
+
+References
+----------
+The Chef.io documentation for Roles can be found here: https://docs.chef.io/environments.html
+A complete description of the Cookbook version constraints can be found here: https://docs.chef.io/cookbook_versions.html
+When you want to move Nodes from one environment to another, you can use Knife Exec command.  Read more about that in the Knife Subcommands section found in Chapter 2.
+
+------------------------
+Using Chef organizations
+------------------------
+
+Creating organizations
+----------------------
+For reference, the format of that command goes like this:
+chef-server-ctl org-create short_name "full_organization_name" --association_user user_name --filename ORGANIZATION-validator.pem
+
+Access control
+--------------
+
+References
+----------
+Here is a link to the Chef.io reference on Organization and Groups: https://docs.chef.io/server_orgs.html
+There is a Knife plugin that can be useful when it is necessary to work with multiple organizations or multiple Chef servers.  It is called Knife Block and you can find it here: https://github.com/knife-block/knife-block
+Here is the information on the Chef Management Console: https://docs.chef.io/ctl_manage.html
+
+-------------------------------------------
+Learning the attribute precedence hierarchy
+-------------------------------------------
+
+Understanding attribute precedence factors
+------------------------------------------
+
+Resulting precedence hierarchy
+------------------------------
+Let’s consider a specific example. You have a default.rb file in your apache cookbook/attributes/ folder that contains the following default attribute values:
+default['apache']['dir']          = '/etc/apache2'
+default['apache']['listen_ports'] = [ '80','443' ]
+
+Your organization requires that all webservers get installed into /var/www folder, and that they use the ports 8080 and 4443 instead of the standard defaults.
+Armed with the knowledge provided in the precedence table above you can add "default" type attributes to your webserver role, like this:
+name 'webserver'
+description 'webserver'
+run_list 'role[base] recipe[apache]'
+default_attributes(
+  'apache' => {
+    'dir' => '/var/www',
+    'listen_ports' => %w(8080 4443)
+  }
+)
+
+References
+----------
+Here is a link to the Chef.io documentation on Attributes: https://docs.chef.io/attributes.html
+Here is a link to the Attribute Precedence table: https://docs.chef.io/_images/overview_chef_attributes_table.png
+There is an interesting article on the OmniTI site that discusses, among other things, the management of attribute precedence. It can be found here: https://omniti.com/seeds/seeds-our-experiences-with-chef-cookbook-and-attribute-design
+There is an interesting blog post by Christine Draper that discusses the pitfalls of derived attributes. Find it here: https://christinemdraper.wordpress.com/2014/10/06/avoiding-the-possible-pitfalls-of-derived-attributes
+
+------------------
+Exploring policies
+------------------
+
+What exactly is a policy
+------------------------
+
+Why would I use a policy
+------------------------
+
+How do I use a policy
+---------------------
+Here is our policyfile:
+name 'cookbook-dir'
+default_source :chef_repo, File.dirname(__FILE__)
+
+run_list 'example'
+
+To create the policy lock file from a policy file, execute a command in the format of:
+chef install <path to policy file> [options]
+
+For example, here is what it looked like when I created our policy lock file for “cookbook-dir”:
+chef install cookbook-dir.rb
+
+Lets take a look at the generated policy lock file.  Inside the cookbook-dir.lock.json file you will find quite a bit of specific information about our policy. One bit of data to noticis is a key “revision_id”.  Look at the value that was created for it.  Here is the one from my lock file:
+  "revision_id": "66d367a388f645c251b15db7586830a36be2aadaf9f2aaa96065b1691d0d5995"
+
+When changes are made to the underlying cookbooks, and a new version of the policy is desired, you issue the command to update the policy in the format of:
+chef update <path to policy file> [options]
+
+For example after changes were made to the “examples” recipe, I updated the policy look file with the chef update command. Here is the command I used:
+chef update cookbook-dir.rb
+
+Here is the new “revision_id” from the updated lock file for comparison with the version above:
+  "revision_id": "f80ae69ae021e0b577a8c0b9dd23f4bb5ea4b91c66ce921cf868721b9a01cafa"
+
+Another example
+---------------
+Then execute the following commands:
+chef generate repo policyfile-book
+cd policyfile-book/
+git init
+git add .
+git commit -m 'Initial repo commit'
+chef generate policyfile
+
+Here is what that policy file template looks like:
+cat Policyfile.rb 
+# Policyfile.rb - Describe how you want Chef to build your system.
+#
+# For more information on the Policyfile feature, visit
+# https://github.com/opscode/chef-dk/blob/master/POLICYFILE_README.md
+
+# A name that describes what the system you're building with Chef does.
+name "example-application-service"
+
+# Where to find external cookbooks:
+default_source :supermarket
+
+# run_list: chef-client will run these recipes in the order specified.
+run_list "example_cookbook::default"
+
+# Specify a custom source for a single cookbook:
+# cookbook "example_cookbook", path: "../cookbooks/example_cookbook"
+
+I’ve edited my Policyfile.rb file making the simple changes resulting in the contents show below:
+cat Policyfile.rb 
+name "policyfile-book"
+default_source :supermarket
+run_list "motd", 'ntp'
+le_cookbook", path: "../cookbooks/example_cookbook"
+
+It will look something like this:
+chef install
+
+For me that is ~/.chefdk/cache/cookbooks/. Here is what you will find if you look in that folder, at this point in the example:
+ls -la ~/.chefdk/cache/cookbooks/
+total 0
+drwxr-xr-x   7 earlwaud  staff  238 Dec 13 23:07 .
+drwxr-xr-x   5 earlwaud  staff  170 Dec 13 22:42 ..
+drwxr-xr-x  11 earlwaud  staff  374 Dec 13 23:07 chef_handler-1.2.0-supermarket.chef.io
+drwxr-xr-x  22 earlwaud  staff  748 Dec 13 23:07 motd-0.6.3-supermarket.chef.io
+drwxr-xr-x  10 earlwaud  staff  340 Dec 13 23:07 ntp-1.8.6-supermarket.chef.io
+
+I copied the contents of the .chef folder from another repo into this new one.  Here is what that looks like:
+mkdir .chef
+cp -r ../chef-repo/.chef/* ./.chef/
+
+In my case I am using the name “book”. Here is what that looks like:
+chef push book
+
+Here is what using those commands look like, first the export to a folder:
+chef export chef-repo
+ls -la chef-repo/
+
+Or exporting to create a tar file:
+chef export -a chef-repo
+
+How to specify the source options for cookbooks
+-----------------------------------------------
+Here is a list of sources with examples:
+# cookbooks with version constraint
+cookbook 'yum', '= 3.6.1'
+cookbook 'yum', '~> 3.6.0'
+
+# cookbooks from a local path
+cookbook 'yum', '/Users/earlwaud/chef-repo/cookbooks/yum'
+
+# cookbooks from a git repository
+cookbook 'yum', git: 'https://github.com/chef-cookbooks/yum'
+
+# cookbooks from a github repository
+cookbook 'yum', github: 'chef-cookbooks/yum'
+
+# cookbooks from a github repo with a release tag
+cookbook 'yum', github: 'chef-cookbooks/yum', tag: '3.7.0'
+
+Also, there are options for what you want to use as a default source for when you don’t specify a cookbook source.  The default is defined in the default_source value, and here are the options you have with examples:
+# use the chef supermarket
+default_source :supermarket
+default_source :community
+
+# use a local or private supermarket
+default_source :supermarket, 'https://mysupermarket.domain.com'
+
+# use the cookbooks in the current working directory
+default_source :chef_repo, FILE.dirname(__FILE__)
+
+# use the cookbooks in another filesystem location
+default_source :chef_repo, '/home/src/other-chef-repo'
+
+What are the “Gotchas”
+----------------------
+
+References
+----------
+The (limited) documentation about Policies on the Chef.io site can be found here: https://docs.chef.io/policy.html. Hopefully it will be expanded by the time you visit it.
+You will probably want to checkout the policyfile documentation on GitHub found at this link: https://github.com/chef/chef-dk/blob/master/POLICYFILE_README.md
+Here is where you will find the chef-zero repo on GitHub: https://github.com/chef/chef-zero
+Here is a link to the Chef.io blog post titled “Policyfiles: A Guided Tour”: https://www.chef.io/blog/2015/08/18/policyfiles-a-guided-tour
+There is an excellent Chef.io webinar recording on the Why, What, and How of Chef Policies that can be watched at this link: https://www.chef.io/webinars/?commid=171697&utm_campaign=add-to-calendar&utm_medium=calendar&utm_source=brighttalk-transact
+
+-------
+Summary
+-------

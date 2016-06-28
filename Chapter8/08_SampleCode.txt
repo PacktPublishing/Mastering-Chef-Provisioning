@@ -1,0 +1,212 @@
+***********************************************************
+Chef Provisioning
+Chapter 8
+Using Chef Provisioning
+Example Code and References
+***********************************************************
+
+-------------------------
+What is Chef provisioning
+-------------------------
+
+It’s highly idempotent
+----------------------
+
+A hypothetical example
+----------------------
+
+References
+----------
+Learn more about Chef Provisioning on the chef.io site: https://docs.chef.io/provisioning.html
+Review the code for Chef Provisioning in the GitHub repo: https://github.com/chef/chef-provisioning
+
+----------------------------
+How to use Chef Provisioning
+----------------------------
+
+Chef Provisioning resources
+---------------------------
+
+A Vagrant example
+-----------------
+Let’s create a new app in our chef-repo:
+cd ~/chef-repo
+chef generate app cool-app
+
+Now let’s create our recipe file:
+mkdir -p cool-app/provision/recipes
+touch cool-app/provision/recipes/app-cluster.rb
+
+And now, let’s edit our recipe file:
+vi cool-app/provision/recipes/app-cluster.rb
+
+Enter the contents shown below in the recipe file:
+require 'chef/provisioning/vagrant_driver'
+with_driver 'vagrant'
+
+vagrant_box 'centos-7.1' do
+  url 'https://github.com/CommanderK5/packer-centos-template/releases/download/0.7.1/vagrant-centos-7.1.box'
+end
+
+with_machine_options :vagrant_options => {
+  'vm.box' => 'centos-7.1'
+}
+
+machine 'db' do
+  recipe 'postgresql'
+  converge true
+end
+
+num_webservers = 2
+machine_batch do
+  1.upto(num_webservers) do |i|
+    machine "web#{i}" do
+      recipe 'apache'
+      converge true
+    end
+  end
+end
+
+For this example we will be using the non-policy mode so the commands to run Chef Provisioning are:
+cd ~/chef-repo
+chef provision --no-policy --cookbook ./cool-app/provision -r app-cluster
+
+What that advisory said, here is the destroy-all recipe:
+cd ~/chef-repo
+vi cool-app/provision/recipes/destroy-all.rb
+
+Enter the contents:
+require 'chef/provisioning'
+machine_batch do
+  machines search(:node, '*:*').map { |n| n.name }
+  action :destroy
+end
+
+Save the file and run the command:
+cd ~/chef-repo
+chef provision --no-policy --cookbook ./cool-app/provision -r destroy-all
+
+A cloud example with AWS
+------------------------
+To do this enter the following commands:
+cd ~/chef-repo
+chef gem install chef-provisioning-aws
+
+cd ~/.aws
+vi ./config
+
+Enter contents like:
+[default]
+region = us-west-2
+
+Ok, now let’s create our new AWS cluster recipe file:
+cd ~/chef-repo
+touch cool-app/provision/recipes/aws-cluster.rb
+
+Edit the new recipe file:
+cd ~/chef-repo
+vi cool-app/provision/recipes/aws-cluster.rb
+
+And enter the following as the contents in the file:
+require 'chef/provisioning/aws_driver'
+with_driver 'aws'
+
+with_machine_options ({
+  bootstrap_options: {
+    image_id: 'ami-8d5b11bd',
+    instance_type: 't1.micro',
+    key_name: 'chef-server-ec2',
+    security_group_ids: 'chef-provisioning',
+  },
+  use_private_ip_for_ssh: false,
+  transport_address_location: :public_ip,
+  ssh_username: 'root',
+  availability_zone: 'us-west-2a',
+})
+
+machine 'db' do
+  recipe 'postgresql'
+  converge true
+end
+
+num_webservers = 2
+machine_batch do
+  1.upto(num_webservers) do |i|
+    machine "web#{i}" do
+      recipe 'apache'
+      converge true
+    end
+  end
+end
+
+Ok, now let’s run the Chef Provisioning command to deploy and converge our cluster:
+cd ~/chef-repo
+chef provision --no-policy --cookbook ./cool-app/provision -r aws-cluster
+
+
+A Docker example
+----------------
+To accomplish this issue the command:
+cd ~/chef-repo
+chef gem install chef-provisioning-docker
+
+Now let’s create a new cluster recipe file:
+cd ~/chef-repo
+touch cool-app/provision/recipes/docker-cluster.rb
+
+Fill the new recipe file with the following:
+require 'chef/provisioning/docker_driver'
+with_driver 'docker'
+
+machine_image 'ubuntu' do
+  machine_options :docker_options => {
+    base_image: {
+      name: 'ubuntu',
+      repository: 'ubuntu',
+      tag: '14.04'
+    }
+  }
+end
+
+machine 'db' do
+  from_image 'ubuntu'
+  recipe 'postgresql'
+  converge true
+end
+
+num_webservers = 2
+machine_batch do
+  1.upto(num_webservers) do |i|
+    machine "web#{i}" do
+      from_image 'ubuntu'
+      recipe 'apache'
+      converge true
+    end
+  end
+end
+
+
+Let’s go ahead and run the command:
+cd ~/chef-repo
+chef provision --no-policy --cookbook ./cool-app/provision -r docker-cluster
+
+
+References
+----------
+Here are the GitHub repos for a few of the Chef Provisioning drivers, each of which provides examples for using Chef Provisioning its named provider:
+•	AWS driver: https://github.com/chef/chef-provisioning-aws
+•	Azure driver: https://github.com/chef/chef-provisioning-azure
+•	Docker driver: https://github.com/chef/chef-provisioning-docker
+•	Vagrant driver: https://github.com/chef/chef-provisioning-vagrant
+•	Google driver: https://github.com/chef/chef-provisioning-google
+•	VSphere driver: https://github.com/CenturyLinkCloud/chef-provisioning-vsphere
+Here is the link to the public Vagrant boxes: http://www.vagrantbox.es
+Learn all of the AWS create instance options at this page: http://docs.aws.amazon.com/sdkforruby/api/Aws/EC2/Resource.html#create_instances-instance_method
+You can download the Docker Toolbox at this link: https://www.docker.com/products/docker-toolbox
+
+Summary
+-------
+
+
+
+

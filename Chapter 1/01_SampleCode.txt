@@ -1,0 +1,281 @@
+***********************************************************
+Chef Provisioning
+Chapter 1
+Setting up a Development Environment on your Workstation
+Example Code and References
+***********************************************************
+
+------------
+Introduction
+------------
+References
+----------
+IT infrastructure automation begins here: https://www.chef.io/
+Additional opportunities for learning Chef can be found here: https://learn.chef.io/
+
+
+----------------------------------------
+Filling gaps of your chef knowledge base
+----------------------------------------
+
+Major pieces of a chef puzzle
+-----------------------------
+
+The Chef Client
+---------------
+
+The Chef tool Ohai
+------------------
+
+Recipes and Cookbooks
+---------------------
+
+Chef Run Lists
+--------------
+
+Chef Roles
+----------
+
+Chef Resources
+--------------
+
+More Things to Consider
+-----------------------
+
+Data Bags
+---------
+
+Environments
+------------
+
+The Chef Supermarket
+--------------------
+
+Chef Development Kit
+--------------------
+
+Setting up an On Premise (Private) Chef Server
+----------------------------------------------
+The command to do that is:
+sudo dpkg -i chef-server-core_12.2.0-1_amd64.deb
+
+The command to do that is:
+sudo chef-server-ctl reconfigure
+
+The format of the user-create command: 
+sudo chef-server-ctl user-create user_name first_name last_name email password --filename FILE_NAME
+
+Here is an example of what that command might look like:
+sudo chef-server-ctl user-create earlwaud Earl Waud earl@sandiegoearl.com MyPassword99 --filename /home/earlwaud/earlwaud.pem
+
+The format of that command is as follows:
+sudo chef-server-ctl org-create short_name "full_organization_name" --association_user user_name --filename ORGANIZATION-validator.pem
+
+Here is the command I used to create the Organization on my example Chef Server:
+sudo chef-server-ctl org-create sdearl "San Diego Earl" --association_user earlwaud --filename /home/earlwaud/sdearl-validator.pem
+
+The command to install the package is:
+sudo chef-server-ctl install opscode-manage
+
+Now we need to restart the Chef Server services by issuing the reconfigure command again
+sudo chef-server-ctl reconfigure
+
+And finally, we need to start the opscode-manage services.  This is done by issuing the command:
+sudo opscode-manage-ctl reconfigure
+
+References
+----------
+Explore the Chef community Supermarket at this link: https://supermarket.chef.io
+Download Chef Server here: https://downloads.chef.io/chef-server/
+Learn more about installing Chef Server here: https://docs.chef.io/release/server_12-2/install_server.html
+Learn more about attributes and attribute precedence here: https://docs.chef.io/attributes.html
+Read more about the “common name” error here: https://github.com/chef-cookbooks/chef-server/issues/108
+
+----------------------------------
+Exploring the Chef Development Kit
+----------------------------------
+
+The Chef Knife
+--------------
+
+Community tools
+---------------
+
+References
+----------
+Learn more about the Chef Development Kit here: https://docs.chef.io/chef_dk.html
+Learn more about Berkshelf in this video recorded interview: https://www.chef.io/blog/chefconf-talks/the-berkshelf-way-jamie-winsor/
+Learn more about Foodcritic at this link: http://www.foodcritic.io/
+Learn about the Knife command line tool at this link: https://docs.chef.io/knife.html
+And download an excellent printable Knife reference guide at this link: https://github.com/chef/quick-reference/blob/master/qr_knife_web.png
+
+-------------------------------
+Installing Chef Development Kit
+-------------------------------
+
+Download ChefDK
+---------------
+
+Install ChefDK
+--------------
+Installing ChefDK on Ubuntu
+It is even easier to install the ChefDK on an Ubuntu system.  Once you have downloaded the installer you simply issue a dpkg command like this one:
+sudo dpkg -i ~/Downloads/chefdk_0.9.0-1_amd64.deb
+
+Verify ChefDK
+-------------
+Next, let’s use the new Chef tool to do a deeper validation on the install. Issue the following command in your terminal session:
+chef verify
+
+Let’s check the versions of some of the expected tools installed via the ChefDK installer.
+Issue the following commands: 
+chef --version
+ohai --version
+foodcritic --version
+rubocop --version
+rspec --version
+
+To make the interactive change you would issue a command in the following format
+eval "$(chef shell-init SHELL_NAME)"
+
+The actual call will be the following for the bash shell:
+eval "$(chef shell-init bash)"
+
+If you want to make the change more permanent, then you need to issue a command in the following format:
+echo 'eval "$(chef shell-init SHELL_NAME)"' >> ~/.YOUR_SHELL_RC_FILE
+
+If you are using a Mac, the commands will be:
+echo 'eval "$(chef shell-init bash)"' >> ~/.bash_profile
+source ~/.bash_profile
+
+If you are using Ubuntu, the commands will be:
+echo 'eval "$(chef shell-init bash)"' >> ~/.bashrc
+source ~/.bashrc
+
+References
+----------
+Visit this link to download the installer for the ChefDK or Chef Server: https://www.chef.io/chef/get-chef/
+Here is Chef.io’s information on installing the Chef Development Kit: https://docs.chef.io/install_dk.htmlThe Chef DK change log can be found here: https://github.com/chef/chef-dk/blob/master/CHANGELOG.md
+
+-------------------------------
+Setting up a standard Chef Repo
+-------------------------------
+
+Using the Chef tool for Chef Repo
+---------------------------------
+Let’s take a look at the chef generate repo command’s help:
+chef generate repo –help
+
+Based on the description of the default values for the chef generate repo command, we can simply issue the following command on our workstation:
+chef generate repo ~/chef-repo
+
+That was easy!  So what do we get?  Well, let’s have a look…
+tree -a chef-repo
+
+The Repo Starter Kit
+--------------------
+Currently, the act of downloading the Starter Kit will reset both your User Private Key and the Organization Validator Key.  
+Let me say that again… Downloading the Starter Kit will reset the Private Key values for both your User AND your Organization.
+With the warning stated clearly above, if you still going to use the Starter Kit, proceed at your own risk…
+
+Files for your .chef folder - a safer way
+-----------------------------------------
+
+Grow your own tree
+------------------
+OS X doesn’t come with a version of the tree command installed, so if you like that tool and use a Mac, I’ve found a clever way to have your cake and eat it too by creating your own a tree script.  This script was used to create the “tree” output shown in the image above.  This idea was shared by the users Ahmed Masud and JakeGould on superuser.com.  It goes like this:
+
+Save the following script to /usr/local/bin/tree
+#!/bin/bash
+
+SEDMAGIC='s;[^/]*/;|____;g;s;____|; |;g'
+
+if [ "$#" -gt 0 ] ; then
+   dirlist="$@"
+else
+   dirlist="."
+fi
+
+for x in $dirlist; do
+     find "$x" -print | sed -e "$SEDMAGIC"
+done
+Change the permissions so you can run it:
+chmod 755 /usr/local/bin/tree
+
+Self-Signed Certificates
+------------------------
+It goes like this:
+knife ssl check
+
+Once you have it just place it in the trusted certs folder and when you run your ssl check command again you should get a message back that says something like:
+knife ssl check
+
+References
+----------
+Learn about setting up your Chef Repo at this link: https://docs.chef.io/chef_repo.html
+Learn more about setting up a chef-repo at this link: https://learn.chef.io/manage-a-web-app/ubuntu/get-set-up/
+OS X doesn’t come with a version of tree installed, so if you like that tool and use a Mac, there is a clever way to have your cake and eat it too by creating your own a tree script. You can find an example that was shared by Ahmed Masud and JakeGould at this link: http://superuser.com/questions/359723/mac-os-x-equivalent-of-the-ubuntu-tree-command
+Keep up to date on the Starter Kit resetting the Organization’s Validator Key at this link: https://feedback.chef.io/forums/301644-chef-product-feedback/suggestions/9618459-starter-kit-should-not-reset-validator-and-user-ke
+
+----------------------
+What else do you need?
+----------------------
+
+Using your favorite editor
+--------------------------
+Here are some sample knife.rb entries…
+Sublime Text:
+knife[:editor] = '/Applications/Sublime\ Text.app/Contents/SharedSupport/bin/subl -w'
+Atom:
+knife[:editor] = '/Applications/Atom.app/Contents/MacOS/Atom -w'
+
+On a Mac, the Atom editor has a built in feature to create symbolic links in the /usr/local/bin folder.  With the Atom editor running, open the “Atom” menu and select “Install Shell Commands” from the sub-menu.  This will create two new links for you.  If you do this before updating your knife.rb file the knife[:editor] entry simply becomes this:
+knife[:editor] = 'atom -w'
+
+When you’re using a Windows OS for your Workstation, you will have to take greater care in formatting your knife[:editor] line to escape the slash characters in the path.  A convenient way to do that is to use single quotes around the full value, and use double quotes for the path.  For Sublime Text, it might look something like this:
+knife[:editor] = '"C:\Program Files\Sublime Text 2\sublime_text.exe" --wait'
+
+For example try the command:
+knife client create editor-tester
+
+Once you have validated the integration with your editor, you can delete the test client with the following command.
+knife client delete editor-tester
+
+Version control system
+----------------------
+
+Virtualization hypervisor
+-------------------------
+
+Vagrant
+-------
+
+References
+----------
+You can download Sublime Text 2 here: http://www.sublimetext.com/
+Or if you want to try long running beta of Sublime Text 3, it can be found here: http://www.sublimetext.com/3
+If you are looking to try Atom 1.0, you can get it here: https://atom.io/
+The OS X editor, TextMate, can be had at this link: https://macromates.com
+Learn more about GitHub here: https://github.com/
+Learn about and download VirtualBox here: https://www.virtualbox.org/
+Learn more about Docker here: https://www.docker.com/
+To get VMware Workstation go here: https://www.vmware.com/products/workstation
+Or for Mac OS X, get VMware Fusion here: https://www.vmware.com/products/fusion
+
+-------------------
+What is chef-apply?
+-------------------
+
+Why is that useful?
+-------------------
+For example, if you need to use git on your system and you find it’s not installed.  Just issue the command:
+sudo chef-apply -e “package ‘git’”
+
+References
+----------
+Here’s a link to the details of an interesting use case for chef-apply posted by Chris Doherty on chef.io: https://www.chef.io/blog/2015/01/16/convert-your-bash-scripts-with-chef-apply/
+Here is a link to the chef.io documentation on chef-apply: https://docs.chef.io/ctl_chef_apply.html
+
+-------
+Summary
+-------

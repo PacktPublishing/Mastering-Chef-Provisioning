@@ -1,0 +1,321 @@
+***********************************************************
+Chef Provisioning
+Chapter 7
+Test Driven Development
+Example Code and References
+***********************************************************
+
+--------------------------------
+Analyzing cookbooks with RuboCop  
+--------------------------------
+
+Using RuboCop  
+-------------
+For example, two different ways to execute RuboCop to test the apache cookbook that is part of your chef-repo are:
+cd ~/chef-repo/cookbooks/apache
+rubocop .
+
+or
+cd ~/chef-repo
+rubocop cookbooks/apache
+
+You can see all of the cops enforced by RuboCop with the command:
+rubocop --show-cops
+
+For example to see if you have any lines that are longer than the standard 80 characters you can issue the commands:
+cd ~/chef-repo/cookbooks/apache
+rubocop --only Metrics/LineLength
+
+Examining RuboCop output
+------------------------
+For example, to see the results for RuboCop test of the NTP cookbook in the [o]ffences and [h]tml formats issue the commands:
+cd ~/chef-repo
+rubocop -f o -f h cookbooks/ntp > /tmp/ntp.html
+
+Customizing RuboCop
+-------------------
+For example, you can issue the following commands:
+cd ~/chef-repo/cookbooks/apache
+rubocop --auto-gen-config
+
+You can rename your .rubocop_todo.yml file to .rubycop.yml, you can add a parameter to your command like this:
+rubocop --config .rubocop_todo.yml
+
+
+References
+----------
+Here is where you can find the RuboCop home page: http://batsov.com/rubocop
+Learn more about RuboCop on the Chef.io site: https://docs.chef.io/rubocop.html
+Here is the RuboCop repo on GitHub: https://github.com/bbatsov/rubocop
+You can find the list of RuboCop cops that enabled by default at this link: https://github.com/bbatsov/rubocop/blob/master/config/enabled.yml
+And here is the link for the cops that are disabled by default: https://github.com/bbatsov/rubocop/blob/master/config/disabled.yml
+If you want to add RuboCop support directly to your editor, visit one or more of these GitHub repos… Sublime Text: https://github.com/pderichs/sublime_rubocop, Atom: https://github.com/yujinakayama/atom-lint, or VIM: https://github.com/ngmy/vim-rubocop
+
+-----------------------------------
+Analyzing cookbooks with Foodcritic
+-----------------------------------
+
+Using Foodcritic
+----------------
+For example, if you want to test the apache cookbook that is part of your chef-repo, you would execute the command:
+cd ~/chef-repo/cookbooks/apache
+foodcritic .
+
+Examining Foodcritic output
+---------------------------
+
+Customizing Foodcritic
+----------------------
+For example to check the apache cookbook for violations of only rule ID FC008 you would us a command like this:
+cd ~/chef-repo
+foodcritic -t FC008 cookbooks/apache
+
+Thus, to check the apache cookbook for violations of every rule except FC008 you would use a command like this:
+cd ~/chef-repo
+foodcritic -t ~FC008 cookbooks/apache
+
+For example, if you want to exclude the rules FC008, FC034, FC043 every time you run Foodcritic to test the apache cookbook, you can create the configuration file using this command:
+cd ~/chef-repo/cookbooks/apache
+echo “~FC008,~FC034,~FC043” > .foodcritic
+foodcritic .
+
+References
+----------
+Here is a link to the Foodcritic home page: http://www.foodcritic.io
+You can read more about Foodcritic on the Chef.io site: https://docs.chef.io/foodcritic.html
+Here is the Foodcritic repo on GitHub: https://github.com/acrmp/foodcritic
+Additional custom Foodcritic rules can be found here: https://github.com/etsy/foodcritic-rules
+
+--------------------------
+Unit testing with ChefSpec
+--------------------------
+
+Using ChefSpec
+--------------
+Using Chef, we can create the cookbook with the command:
+cd ~/chef-repo/cookbooks
+chef generate cookbook mywebapp
+cd mywebapp
+berks init
+
+Allow the berks init command to overwrite any of the configuration files with a response of “Y” at each prompt.  Now take a look at what was created:
+ 
+Insert mywebapp_tree.png
+
+Start by editing the recipe file:
+cd ~/chef-repo/cookbooks/mywebapp
+vi recipe/default.rb
+
+Add the following resources:
+package 'httpd'
+
+file '/var/www/html/index.html' do
+  content '<h1>Hello MyWebApp User</h1>'
+end
+
+service 'httpd' do
+  action [:enable, :start]
+end
+
+So let’s give it a try with the following command:
+cd ~/chef-repo/cookbooks/mywebapp
+chef exec rspec spec/unit/recipes/default_spec.rb
+
+If you’ve been following along, and you run the command above, you will get results that look like this:
+cd ~/chef-repo/cookbooks/mywebapp
+chef exec rspec spec/unit/recipes/default_spec.rb
+
+To find out, we want examine the contests of our default_spec.rb file, the one found in cookbooks/mywebapp/spec/unit/recipes folder.
+cd ~/chef-repo/cookbooks/mywebapp
+cat spec/unit/recipes/default_spec.rb
+
+require 'spec_helper'
+
+describe 'mywebapp::default' do
+  context 'When all attributes are default, on an unspecified platform' do
+    let(:chef_run) do
+      runner = ChefSpec::ServerRunner.new
+      runner.converge(described_recipe)
+    end
+
+    it 'converges successfully' do
+      expect { chef_run }.to_not raise_error
+    end
+  end
+end
+
+
+Expanding our tests
+-------------------
+Here is the resulting file contents:
+cd ~/chef-repo/cookbooks/mywebapp
+vi spec/unit/recipes/default_spec.rb
+
+require 'spec_helper'
+
+describe 'mywebapp::default' do
+  context 'When all attributes are default, on an unspecified platform' do
+    let(:chef_run) do
+      runner = ChefSpec::ServerRunner.new
+      runner.converge(described_recipe)
+    end
+
+    it 'converges successfully' do
+      expect { chef_run }.to_not raise_error
+    end
+
+    it 'installs the package httpd' do
+       expect(chef_run).to install_package('httpd')
+    end
+
+  end
+end
+
+Ok, so let’s run our unit test again now that we have added our new expectation.  
+cd ~/chef-repo/cookbooks/mywebapp
+chef exec rspec spec/unit/recipes/default_spec.rb
+
+Go ahead and give that a try now.
+cd ~/chef-repo/cookbooks/mywebapp
+chef exec rspec -fd spec/unit/recipes/default_spec.rb
+
+For example, I could have inserted the following pending expectations into my default_spec.rb file:
+it ‘installs a package named httpd’
+it ‘makes me a cup of Earl Grey tea’
+
+Here is the command for reference:
+cd ~/chef-repo/cookbooks/mywebapp
+chef generate recipe install
+
+ 
+References 
+----------
+Here is the ChefSpec documentation on the Chef.io site: https://docs.chef.io/chefspec.html
+You can find the ChefSpec repo on GitHub here: https://github.com/sethvargo/chefspec
+And the expectation examples in the ChefSpec repo are here: https://github.com/sethvargo/chefspec/tree/master/examples
+Here is an exceptional webinar on using ChefSpec: https://www.chef.io/webinars/?commid=194483
+
+-----------------------------------------------
+Integration testing with Kitchen and ServerSpec
+-----------------------------------------------
+ 
+Preparing our tests 
+-------------------
+To make sure we have a “default” file, we will actually generate a new cookbook using the chef generate command (note - you may have already done this if you have been following along in this chapter):
+cd ~/chef-repo/cookbooks
+chef generate cookbook mywebapp
+cd mywebapp
+berks init
+
+Here is what that files looks like after you’ve run the commands above (Note that the berks init command overwrites the .kitchen.yml file created by the chef generate command):
+cd ~/chef-repo/cookbooks/mywebapp
+cat .kitchen.yml
+---
+driver:
+  name: vagrant
+
+provisioner:
+  name: chef_solo
+
+platforms:
+  - name: ubuntu-14.04
+  - name: centos-7.1
+
+suites:
+  - name: default
+    run_list:
+      - recipe[mywebapp::default]
+    attributes:
+
+If you did not create the contents for the default recipe described in the previous section of this chapter, you should add that to the default recipe file now.
+cd ~/chef-repo/cookbooks/mywebapp
+vi recipes/default.rb
+
+package 'httpd'
+
+file '/var/www/html/index.html' do
+  content '<h1>Hello MyWebApp User</h1>'
+end
+
+service 'httpd' do
+  action [:enable, :start]
+end
+
+Kitchen create 
+--------------
+The first command we will try is the create command.  When you execute the command:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen create
+
+
+Kitchen converge 
+----------------
+To converge our server instance to the desired state, execute the command:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen converge
+
+
+Kitchen verify 
+--------------
+So run the verify command now:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen verify
+
+Edit our test file:
+cd ~/chef-repo/cookbooks/mywebapp
+vi test/integration/default/serverspec/default_spec.rb
+
+The file contents will look like this:
+require 'spec_helper'
+
+describe 'mywebapp::default' do
+  # Serverspec examples can be found at
+  # http://serverspec.org/resource_types.html
+  it 'does something' do
+    skip 'Replace this with meaningful tests'
+  end
+end
+
+To create this test, replace the inner block of test code so the resulting file look like this:
+require 'spec_helper'
+
+describe 'mywebapp::default' do
+  describe command('curl http://localhost') do
+    its(:stdout) { should match(/Hello MyWebApp User/) }
+  end
+end
+
+Now save the file, and run the verify command again:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen verify
+
+Often, you’ll just want to issue the commands like this:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen converge && kitchen verify
+
+The command for this is as you would expect:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen destroy
+
+To execute this you issue the command as follows:
+cd ~/chef-repo/cookbooks/mywebapp
+kitchen test
+
+References 
+----------
+Here is the link to the Chef.io information about Test Kitchen: https://docs.chef.io/kitchen.html
+You can find the Test Kitchen repo on GitHub here: https://github.com/test-kitchen/test-kitchen
+Here is the Test Kitchen home page: http://kitchen.ci
+Here is a link to the ServerSpec site: http://serverspec.org
+This is the link to the home page for the Vagrant tool: https://www.vagrantup.com
+The VirtualBox software can be found at this link: https://www.virtualbox.org/wiki/Downloads
+Learn about the many options that can be used in the .kitchen.yml configuration file here: https://docs.chef.io/config_yml_kitchen.html
+An excellent Test Kitchen getting started guide is found available at this URL: http://kitchen.ci/docs/getting-started
+Find information about the various ServerSpec resource tests available to you here: http://serverspec.org/resource_types.html
+
+
+
+Summary
+-------
+
+

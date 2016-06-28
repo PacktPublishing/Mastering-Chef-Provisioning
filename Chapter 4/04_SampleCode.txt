@@ -1,0 +1,452 @@
+***********************************************************
+Chef Provisioning
+Chapter 4
+Custom Resources
+Example Code and References
+***********************************************************
+
+------------------------------------------------------------
+Out with the old (LWRPs), in with the new (Custom Resources)
+------------------------------------------------------------
+
+What is the difference between the Old way and the New way of defining resources
+--------------------------------------------------------------------------------
+
+What is a Custom resource?
+--------------------------
+
+References
+----------
+Here is the link to Chef’s new Custom Resources information: https://docs.chef.io/custom_resources.html
+Here is a link to the Chef page for Custom Resources prior to version 12.5. It describes the LWRP and HWRP: https://docs.chef.io/release/12-4/custom_resources.html
+Here is the Chef documentation for (almost deprecated) Definitions: https://docs.chef.io/definitions.html
+There is an excellent book that really details the creation and use of LWRPs and HWRPs. The book is titled “Customizing Chef” and is by Jon Cowie. You can check out a sample here: https://books.google.com/books/about/Customizing_Chef.html?id=XOBdBAAAQBAJ&printsec=frontcover&source=kp_read_button&hl=en#v=onepage&q&f=false
+
+----------------------------
+Creating an example use case
+----------------------------
+
+What is the goal?
+-----------------
+
+Creating the cookbook
+---------------------
+We do that by issuing the following commands:
+cd ~/chef-repo/cookbooks
+chef generate cookbook mywebapp
+
+Go into the new cookbook folder and issue the tree command like this…
+cd mywebapp
+tree
+
+Creating the default recipe
+---------------------------
+Adding the following code to the default.rb file will give us the resources needed to create three (very simplistic) web sites.
+#
+# Cookbook Name:: mywebapp
+# Recipe:: default
+#
+# Copyright (c) 2016 The Authors, All Rights Reserved.
+
+directory '/var/www/users' do
+  recursive true
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  action :create
+end
+
+file '/var/www/users/index.html' do
+  content '<html><title>Users</title><body><h1>Hello to our Users</h1></body></html>'
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  notifies :restart, 'service[httpd]'
+end
+
+service 'httpd' do
+  action :nothing
+end
+
+directory '/var/www/suppliers' do
+  recursive true
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  action :create
+end
+
+file '/var/www/suppliers/index.html' do
+  content '<html><title>Suppliers</title><body><h1>Hello to our Suppliers</h1></body></html>'
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  notifies :restart, 'service[httpd]'
+end
+
+service 'httpd' do
+  action :nothing
+end
+
+directory '/var/www/customers' do
+  recursive true
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  action :create
+end
+
+file '/var/www/customers/index.html' do
+  content '<html><title>Customers</title><body><h1>Hello to our Customers</h1></body></html>'
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  notifies :restart, 'service[httpd]'
+end
+
+service 'httpd' do
+  action :nothing
+end
+
+If we want to validate that what we have created so far is working, we can execute a local override chef-client run with the -z and -o parameters, like this:
+cd ~/chef-repo
+sudo chef-client -z -o mywebapp
+
+
+The recipe worked, but what is missing?
+---------------------------------------
+
+References
+----------
+Here is a link to chef-client documentation with includes the details for using local mode: https://docs.chef.io/ctl_chef_client.html#run-in-local-mode
+
+------------------------------------
+Creating and using a custom resource
+------------------------------------
+
+What makes up a custom resource?
+--------------------------------
+For example if we want to create a “website” Custom Resource, we would create a new Ruby file named website.rb, like this:
+mkdir –p ~/chef-repo/cookbooks/mywebapp/resources
+touch ~/chef-repo/cookbooks/mywebapp/resources/website.rb
+
+Creating the “website” custom resource
+--------------------------------------
+First let’s create a new file to hold our Custom Resource.
+mkdir ~/chef-repo/cookbooks/mywebapp/resources
+touch ~/chef-repo/cookbooks/mywebapp/resources/website.rb
+
+Here is the section we are copy/pasting:
+directory '/var/www/users' do
+  recursive true
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  action :create
+end
+
+file '/var/www/users/index.html' do
+  content '<html><title>Users</title><body><h1>Hello to our Users</h1></body></html>'
+  mode 0755
+  user 'earlwaud'
+  group 'wheel'
+  notifies :restart, 'service[httpd]'
+end
+
+service 'httpd' do
+  action :nothing
+end
+
+Now our website custom resource looks like this:
+action :start do
+  directory '/var/www/users' do
+    recursive true
+    mode 0755
+    user 'earlwaud'
+    group 'wheel'
+    action :create
+  end
+
+  file '/var/www/users/index.html' do
+    content '<html><title>Users</title><body><h1>Hello to our Users</h1></body></html>'
+    mode 0755
+    user 'earlwaud'
+    group 'wheel'
+    notifies :restart, 'service[httpd]'
+  end
+
+  service 'httpd' do
+    action :nothing
+  end
+end
+
+Add the following two lines to the website.rb file:
+property :site_name, String, name_property: true
+property :title, String
+
+Once updated our file should contain the following:
+property :site_name, String, name_property: true
+property :title, String
+
+action :start do
+  directory "/var/www/#{site_name}" do
+    recursive true
+    mode 0755
+    user 'earlwaud'
+    group 'wheel'
+    action :create
+  end
+
+  file "/var/www/#{site_name}/index.html" do
+    content "<html><title>#{title}</title><body><h1>Hello to our #{title}</h1></body></html>"
+    mode 0755
+    user 'earlwaud'
+    group 'wheel'
+    notifies :restart, 'service[httpd]'
+  end
+
+  service 'httpd' do
+    action :nothing
+  end
+end
+
+Using our custom resource
+-------------------------
+Edit the default.rb file we created earlier, and cut out all of the code. Then add the following three blocks of code to the now empty file:
+mywebapp_website 'users' do
+  title 'Users'
+end
+
+mywebapp_website 'suppliers' do
+  title 'Suppliers'
+end
+
+mywebapp_website 'customers' do
+  title 'Customers'
+end
+
+Issue the same commands used above:
+cd ~/chef-repo
+sudo chef-client -z -o mywebapp
+
+References
+----------
+Here is a link to a Chef.io slide deck on creating Custom Resources: https://docs.chef.io/decks/custom_resources.html
+
+--------------------------------------
+Making a custom resource more reusable
+--------------------------------------
+
+Making a custom resource only cookbook
+--------------------------------------
+Let’s create a new cookbook called “appsite”, which will be our new reusable cookbook.
+cd ~/chef-repo/cookbooks
+chef generate cookbook appsite
+
+Reuse the code from the “mywebapp” example
+------------------------------------------
+
+Using the reusable custom resource only cookbook
+------------------------------------------------
+First we need to add a “depends” directive to our cookbook metadata.rb file. Making this one line change will result in a metadata.rb file that looks like this:
+name 'mywebapp'
+maintainer 'The Authors'
+maintainer_email 'you@example.com'
+license 'all_rights'
+description 'Installs/Configures mywebapp'
+long_description 'Installs/Configures mywebapp'
+version '0.1.0'
+depends 'appsite'
+
+The resulting default.rb file will look like this:
+appsite_website 'customers' do
+  title 'Customers'
+end
+
+appsite_website 'suppliers' do
+  title 'Suppliers'
+end
+
+appsite_website 'users' do
+  title 'Users'
+end
+
+Handling idempotence
+--------------------
+If we needed to check the state of the contents of the index.html file and only change it if the resulting state (or contents) would be different than it currently is, then we can update the code to look like this:
+property :site_name, String, name_property: true
+property :title, String
+
+load_current_value do
+  title IO.read("/var/www/#{site_name}/index.html")
+end
+
+action :start do
+  converge_if_changed do
+    directory "/var/www/#{site_name}" do
+      recursive true
+      mode 0755
+      user 'earlwaud'
+      group 'wheel'
+      action :create
+    end
+
+    file "/var/www/#{site_name}/index.html" do
+      content title
+      mode 0755
+      user 'earlwaud'
+      group 'wheel'
+      notifies :restart, 'service[httpd]'
+    end
+
+    service 'httpd' do
+      action :nothing
+    end
+  end
+end
+
+References
+----------
+Here is a link to the Chef Documentation for Custom Resource DSL with details about converge_if_changed and load_current_value: https://docs.chef.io/dsl_custom_resource.html
+
+------------------------------
+Sub-classing a custom resource
+------------------------------
+
+Convert our resource into a library module
+------------------------------------------
+Next we create a new file in our libraries folder named website.rb, and add the following contents to the file:
+module AppsiteCookbook
+  class Website < Chef::Resource
+    resource_name :appsite_website
+
+  end
+end
+
+Next we can copy all of the code from our resource/website.rb file, and paste it into our new library module definition. The resulting file will then look like this:
+module AppsiteCookbook
+  class Website < Chef::Resource
+    resource_name :appsite_website
+
+    property :site_name, String, name_property: true
+    property :title, String
+
+    action :start do
+      directory "/var/www/#{site_name}" do
+        recursive true
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        action :create
+      end
+
+      file "/var/www/#{site_name}/index.html" do
+        content "<html><title>#{title}</title><body><h1>Hello to our #{title}</h1></body></html>"
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        notifies :restart, 'service[httpd]'
+      end
+
+      service 'httpd' do
+        action :nothing
+      end
+
+    end
+  end
+end
+
+Sub-classing the library module custom resource
+-----------------------------------------------
+Let’s change the base class first.  We are going to simplify our libraries/webstie.rb file changing the contents to the following:
+module AppsiteCookbook
+  class Website < Chef::Resource
+    resource_name :appsite_website
+
+    property :site_name, String, name_property: true
+    property :title, String
+
+    action :start do
+      puts "Executing Base Class"
+    end
+
+  end
+end
+
+Create a new file in the libraries folder named “website_linux.rb”. Put the following code into the file:
+module AppsiteCookbook
+  class WebsiteLinux < Website
+    resource_name :appsite_website_linux
+    provides :appsite_website, os: [ 'linux', 'darwin' ]
+
+    action :start do
+      puts 'Installing on Linux OS'
+      super()
+      puts 'Executing Linux Sub-Class'
+
+      directory "/var/www/#{site_name}" do
+        recursive true
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        action :create
+      end
+
+      file "/var/www/#{site_name}/index.html" do
+        content "<html><title>#{title}</title><body><h1>Hello to our #{title}</h1></body></html>"
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        notifies :restart, 'service[httpd]'
+      end
+
+      service 'httpd' do
+        supports :restart => true
+        action :nothing
+      end
+
+    end
+  end
+end
+
+Finally, let’s create the windows sub-class file for completeness. Again in the libraries folder, create a new file named “website_windows.rb”. Put the following code into the new file:
+module AppsiteCookbook
+  class WebsiteWindows < Website
+    resource_name :appsite_website_windows
+    provides :appsite_website, os: 'windows'
+
+    action :start do
+      puts 'Installing on Windows OS'
+      super()
+      puts 'Executing Windows Sub-Class'
+
+      directory "#{ENV['SYSTEMDRIVE']}\\inetpub\\wwwroot\\#{site_name}" do
+        recursive true
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        action :create
+      end
+
+      file "#{ENV['SYSTEMDRIVE']}\\inetpub\\wwwroot\\#{site_name}\\index.html" do
+        content "<html><title>#{title}</title><body><h1>Hello to our #{title}</h1></body></html>"
+        mode 0755
+        user 'earlwaud'
+        group 'wheel'
+        notifies :restart, 'service[w3svc]'
+      end
+
+      service 'w3svc' do
+        action :nothing
+      end
+    end
+  end
+end
+
+References
+----------
+Here is a link to the Chef documentation on Libraries: https://docs.chef.io/libraries.html
+
+-------
+Summary
+-------

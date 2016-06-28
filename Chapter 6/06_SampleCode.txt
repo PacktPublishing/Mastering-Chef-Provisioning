@@ -1,0 +1,412 @@
+﻿***********************************************************
+Chef Provisioning
+Chapter 6
+Provisioning into the Cloud
+Example Code and References
+***********************************************************
+
+------------------------------
+Provisioning AWS EC2 instances
+------------------------------
+
+Understanding EC2 Authentication
+--------------------------------
+The contents of the credential file will look something like this:
+cat /Users/earlwaud/.aws/credential_file
+[default]
+aws_access_key_id = TR42UIIKKN73BSROPZGA
+aws_secret_access_key = eZMk1OXH2Ish056IkH50fLg7TQ9U2pDHrOh9OUF9
+
+Then you will add the pointer to the credentials in your knife file with a line like this:
+knife[:aws_credential_file] = '/Users/earlwaud/.aws/credential_file'
+
+
+Installing Chef Server into an EC2 instance
+-------------------------------------------
+The first step is to download the chef-server cookbook and its dependencies.  To do this we are going to issue the commands:
+cd ~/chef-repo
+knife cookbook site install chef-server
+
+To upload our cookbooks to the Chef Server, we will issue the command:
+cd ~/chef-repo
+knife cookbook upload chef-server --include-dependencies
+
+With that advisory said, here is the knife-ec2 command I used for deploying the EC2 instance I’ll use for the Chef Server:
+cd ~/chef-repo
+knife ec2 server create \
+  --node-name ec2-chef-server \
+  --groups=chef-provisioning \
+  --region=us-west-2 \
+  --availability-zone=us-west-2a \
+  --image=ami-9abea4fb \
+  --server-connect-attribute=public_ip_address \
+  --flavor=t2.small \
+  --ssh-user=ubuntu \
+  --ssh-key=us-west-oregon-earl01 \
+  --identity-file=/Users/earlwaud/.aws/us-west-oregon-earl01.pem \
+  --run-list="recipe['chef-server']" \
+  -V
+
+To ssh into our new system issue the following commands:
+cd ~/chef-repo
+ssh -i ../.aws/us-west-oregon-earl01.pem ubuntu@ec2-54-201-38-94.us-west-2.compute.amazonaws.com
+
+to finish our Chef Server setup.  Here are the commands:
+sudo chef-server-ctl user-create earlwaud Earl Waud earl@sandiegoearl.com MyPassword99 --filename ~/earlwaud-ec2.pem
+sudo chef-server-ctl org-create sdearl "San Diego Earl" --association_user earlwaud --filename ~/sdearl-validator-ec2.pem
+sudo chef-server-ctl install chef-manage
+sudo chef-server-ctl reconfigure
+sudo opscode-manage-ctl reconfigure
+
+References
+----------
+Read about the partnership between Chef.io and Amazon AWS here: https://www.chef.io/solutions/aws/
+Visit the Amazon EC2 console at this URL: https://console.aws.amazon.com/ec2/
+Explore the many AMI images available to provision from in the AWS Marketplace: https://aws.amazon.com/marketplace/ref=csl_ec2_ami
+Find the details for the Chef Server specific AMIs offered on the AWS Marketplace: https://aws.amazon.com/marketplace/pp/B010OMO0UE/?ref=_ptnr_chef_website#product-details
+Learn how to connect to your EC2 instances using PuTTY at this link: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/putty.html?icmpid=docs_ec2_console
+Here is Amazon’s documentation on key pairs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html?icmpid=docs_ec2_console
+Here is Amazon’s documentation on security groups: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-network-security.html?icmpid=docs_ec2_console
+Here is the chef-server cookbook repo on Github: https://github.com/chef-cookbooks/chef-server
+Find all the available flavors that can be used to configure your instance’s resource sizing at this link: https://aws.amazon.com/ec2/instance-types/
+
+
+--------------------------------------
+Provisioning Microsoft Azure instances
+--------------------------------------
+
+Classic: http://manage.windowsazure.com/
+Portal: http://portal.azure.com/
+
+Installing the knife-azure plugin
+---------------------------------
+
+Alright, let’s install the plugin.  You can easily install the plugin with the commands:
+cd ~/chef-repo
+chef gem install knife-azure
+
+Or if you want to give the release candidate version a try, use the commands:
+cd ~/chef-repo
+chef gem install knife-azure –v 1.6.0.rc.0
+
+Or you can use the more generic parameter
+cd ~/chef-repo
+chef gem install knife-azure –prerelease
+
+Configuring the plugin
+----------------------
+Now, edit the knife.rb file and add the lines for the Azure plugin configuration:
+cd ~/chef-repo
+vi .chef/knife.rb
+
+Add the following lines:
+#knife-azure
+knife[:azure_publish_settings_file] = '/Users/earlwaud/.azure/credentials.publishsettings'
+
+Verifying the configuration
+---------------------------
+Enter:
+knife azure server list
+
+Try this command:
+knife azure image list
+
+Generating public/private key pairs
+-----------------------------------
+$ ssh-keygen
+
+Provisioning virtual machines
+-----------------------------
+Here is the knife-azure plugin command to create a new server named earl-vm01:
+knife azure server create \
+  --azure-dns-name earl-dns01 \
+  --azure-vm-name earl-vm01 \
+  --azure-source-image 112500ae3b842c8b9c604889f8753c3__OpenLogic-CentOS-71-20160308 \
+  --azure-service-location 'Central US' \
+  --ssh-user earlwaud \
+  --identity-file ~/.ssh/azure_rsa \
+  --bootstrap-protocol ssh \
+  --node-name earl-node01 \
+  --run-list 'recipe['base']' \
+  -V
+
+
+So, we can ssh into our new system with the command:
+ssh -i ~/.ssh/azure_rsa earlwaud@earl-dns01.cloudapp.net
+
+Provisioning a new Chef Server into Azure
+-----------------------------------------
+here is the new server create command:
+knife azure server create \
+  --azure-dns-name earl-chef \
+  --azure-vm-name earl-chefvm01 \
+  --azure-vm-size Medium \
+  --azure-source-image b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-14_04_1-LTS-amd64-server-20150123-en-us-30GB \
+  --azure-service-location 'Central US' \
+  --ssh-user earlwaud \
+  --identity-file ~/.ssh/azure_rsa \
+  --bootstrap-protocol ssh \
+  --node-name earl-chefvm01 \
+  --run-list 'recipe['chef-server']' \
+  --tcp-endpoints 80,443,9683 \
+  -V
+
+Ok, now we can go about our business of ssh’ing into our new Chef Server using the same format of the ssh command shown earlier.
+ssh -i ~/.ssh/azure_rsa earlwaud@earl-chef.cloudapp.net
+
+Then we can complete the setup of our Chef Server with these commands (which are nearly identical to the ones we used for our Chef Server in the EC2 instance:
+sudo chef-server-ctl user-create earlwaud Earl Waud earl@sandiegoearl.com MyPassword99 --filename ~/earlwaud-azure.pem
+sudo chef-server-ctl org-create sdearl "San Diego Earl" --association_user earlwaud --filename ~/sdearl-validator-azure.pem
+sudo chef-server-ctl install chef-manage
+sudo chef-server-ctl reconfigure
+sudo opscode-manage-ctl reconfigure
+
+Here is a subset of the common parameters available for your knife.rb file.  Remember to use fully qualified paths for filename configuration parameters:
+knife[:azure_publish_settings_file] = ‘/Users/earlwaud/.azure/credentials.publishsettings’
+knife[:azure_dns_name] = 'earl-dns01'
+knife[:azure_service_location] = 'Central US'
+knife[:azure_source_image] = '112500ae3b842c8b9c604889f8753c3__OpenLogic-CentOS-71-20160308'
+knife[:azure_vm_name] ='earl-vm01'
+knife[:ssh_user] = 'earlwaud'
+knife[:identity_file] = '/Users/earlwaud/.ssh/azure_rsa'
+knife[:tcp-endpoints] = '80,443,9683'
+knife[:udp-endpoints] = '123:123'
+
+Here is an example of with command to do this:
+knife azure server delete earl-vm01 -N earl-node01 --purge –y
+
+References
+----------
+Create a Microsoft Azure account using the Classic UI at this link: https://account.windowsazure.com/SignUp
+Or create your account using the Portal UI at this link: https://azure.microsoft.com/en-us/
+Learn about the Chef and Microsoft partnership here: https://www.chef.io/solutions/azure/
+Find the knife-azure plugin repo on Github here: https://github.com/chef/knife-azure
+Find the azure-cookbook repo on Github here: https://github.com/chef-partners/azure-cookbook
+Link to download (Classic UI) Azure PublishSettings file from Microsoft: https://manage.windowsazure.com/publishsettings/index?client=xplat
+If you want to do some DevOps work using Microsoft PowerShell and Azure, you can find the instructions here: https://azure.microsoft.com/en-us/documentation/articles/powershell-install-configure/
+
+
+-------------------------------------------
+Provisioning into the Google Cloud Platform
+-------------------------------------------
+
+Installing and configuring the knife-google plugin
+--------------------------------------------------
+Using the following command for the installation:
+chef gem install knife-google
+
+You are literally forced to install the Google Cloud SDK on your Chef workstation, and once it is installed, issue an SDK command that generates a .json file in this location:
+~/.config/gcloud/application_default_credentials.json
+
+Open a Terminal window and enter the following command:
+curl https://sdk.cloud.google.com | bash
+
+This will download the SDK and execute its installation.  Now, restart your shell with the command:
+exec -l $SHELL
+
+Next, initialize the gcloud environment with the command:
+gcloud init
+
+Here are the values I’ve used in my knife.rb file:
+#knife-google
+knife[:gce_project] = 'api-project-167666703318'
+knife[:gce_zone] = 'us-central1-a'
+
+Creating and registering your key pairs
+---------------------------------------
+Here is the command for reference:
+ssh-keygen
+
+I used:
+/Users/earlwaud/.ssh/gce_rsa
+
+Provisioning Virtual Machines with the GCE
+------------------------------------------
+Of course if you have pre-existing Google Compute Engine instances, then you should see them listed with this command:
+knife google server list
+
+Now, let’s give the image list command a shot.  Issue the command:
+knife google image list
+
+Enter:
+knife google region list
+
+On our Chef workstation enter the following command:
+knife google server create earl-gce101 \
+  --gce-machine-type g1-small \
+  --gce-image centos-7-v20160301 \
+  --identity-file ~/.ssh/gce_rsa \
+  --gce-can-ip-forward \
+  --ssh-user earlwaud \
+  -V
+
+Deploying Chef Server into a GCE instance
+-----------------------------------------
+Here’s the command:
+knife google server create earl-gce-chef \
+  --node-name earl-gce-chef \
+  --gce-machine-type n1-standard-1 \
+  --gce-image ubuntu-1404-trusty-v20160314 \
+  --bootstrap-protocol ssh \
+  --ssh-user earlwaud \
+  --identity-file ~/.ssh/gce_rsa \
+  --user earlwaud \
+  --gce-can-ip-forward \
+  --gce-tags http-server,https-server,chef-server \
+  --run-list="recipe['chef-server']" \
+  -V
+
+Once again, let’s ssh into our new server, and issue the few commands needed to complete the Chef Server setup:
+sudo chef-server-ctl user-create earlwaud Earl Waud earl@sandiegoearl.com MyPassword99 --filename ~/earlwaud-gce.pem
+sudo chef-server-ctl org-create sdearl "San Diego Earl" --association_user earlwaud --filename ~/sdearl-validator-gce.pem
+sudo chef-server-ctl install chef-manage
+sudo chef-server-ctl reconfigure
+sudo opscode-manage-ctl reconfigure
+
+Here is an example command:
+knife google server delete earl-gce-chef --purge
+
+References
+----------
+Create your account and start a free 60 day trail at: https://cloud.google.com/
+Chef and Google Compute Engine (GCE) information on Chef.io: https://www.chef.io/solutions/google-cloud-platform/
+Learn about the knife-google plugin on Github: https://github.com/chef/knife-google
+Learn about the Google Compute Engine (GCE) cookbook LWRP on Github: https://github.com/chef/knife-google
+Learn about the Google Cloud Storage (GCS) cookbook LWRP on Github: https://github.com/chef-partners/google-cloud-storage
+Watch some demo screencasts to learn more about Google DevOps with Chef at this link: http://googlecloudplatform.github.io/compute-video-demo-chef/
+Instructions to install the Google Cloud SDK: https://cloud.google.com/sdk/
+List of Google Compute Engine Machine Types (instance sizes): https://cloud.google.com/compute/docs/machine-types?hl=en_US&_ga=1.97972955.533487120.1458267295
+
+
+----------------------------------------
+Looking at an honorable mention - Linode
+----------------------------------------
+You can install the plugin with the now familiar chef command:
+chef gem install knife-linode
+
+Here is what the knife.rb configuration parameter will look like:
+#knife-linode
+knife[:linode_api_key] = 'O7wCP4TVURELEDtG6uF0mp6Gxf1BVZtEc2jm6uw1V63Yc3UodwztxCuk4EU8uPvQ'
+
+References
+The Linode website: https://www.linode.com/
+The knife-linode plugin repo on Github: https://github.com/chef/knife-linode
+
+
+---------------------------------
+Provisioning containers in Docker
+---------------------------------
+
+Setup a Docker server to host our containers
+--------------------------------------------
+Let’s get started… here is the command to download the Docker cookbook:
+knife cookbook site install docker
+
+The docker cookbook has a dependency on the compat_resource cookbook, specifically the version 12.7.1, so let’s make sure we have the desired version installed in our repo with the command:
+knife cookbook site install compat_resource 12.7.1
+
+Now let’s upload the docker cookbook and it’s dependencies with the command:
+knife cookbook upload docker --include-dependencies
+
+Let’s create the new cookbook structure with Chef, using this command:
+cd ~/chef-repo
+chef generate cookbook cookbooks/my-docker
+
+Now let’s update the metadata for our new cookbook by editing the metadata.rb file
+cd ~/chef-repo
+vi cookbooks/my-docker/metadata.rb
+
+The resulting file should look something like this:
+name 'my-docker'
+maintainer 'Earl Waud'
+maintainer_email 'earl.waud@gmail.com'
+license 'all_rights'
+description 'Installs/Configures my-docker'
+long_description 'Installs/Configures my-docker'
+version '0.1.0'
+
+depends 'docker', '~> 2.0'
+
+Now let’s create a my-docker recipe by creating a default.rb file in the recipes folder of our new cookbook
+cd ~/chef-repo
+vi cookbooks/my-docker/recipes/default.rb
+
+Insert the following recipe code:
+docker_service 'default' do
+  action [:create, :start]
+end
+
+Save the file and we can upload the cookbook to our Chef server with the command:
+cd ~/chef-repo
+Knife cookbook upload my-docker
+
+With that decision, here is the command:
+knife azure server create \
+  --azure-dns-name earl-docker \
+  --azure-vm-name earl-docker \
+  --azure-vm-size Medium \
+  --azure-source-image b39f27a8b8c64d52b05eac6a62ebad85__Ubuntu-14_04_1-LTS-amd64-server-20150123-en-us-30GB \
+  --azure-service-location 'Central US' \
+  --ssh-user earlwaud \
+  --identity-file ~/.ssh/azure_rsa \
+  --bootstrap-protocol ssh \
+  --node-name earl-docker \
+  --run-list 'recipe['my-docker']' \
+  --tcp-endpoints 80,443,3306 \
+  -V
+
+For example we can use the command:
+sudo docker ps
+
+
+Installing and using Docker on our Chef Workstation
+---------------------------------------------------
+Now you can give some Docker commands a try.
+docker ps
+docker images
+docker run -t -i ubuntu:14.04 /bin/bash
+
+Using the knife-docker plugin
+--------------------------------
+Issue the command:
+chef gem install knife-container
+
+Issue the command:
+chef gem install knife-docker
+
+From within the terminal session issue the command:
+sudo docker images
+
+We can do this by issuing a docker search command like this:
+sudo docker search ubuntu
+
+I want to use that for our test of the knife-docker plugin, so I am going to download that image with the command:
+sudo docker pull rastasheep/ubuntu-sshd
+
+Ok, let’s issue the image command again to see if the downloaded image shows up in our list as expected.
+sudo docker images
+
+Here is the basic command:
+sudo knife docker create -I rastasheep/ubuntu-sshd --node-name docker01
+
+Here is an example command:
+sudo knife docker delete f5e483540f3d -P
+
+
+References
+----------
+Here is a link to the Docker home page: https://www.docker.com/
+You can find the Docker repo here: https://github.com/docker/docker
+And you can find the Chef cookbook for Docker here: https://github.com/chef-cookbooks/docker
+Signup for a commercial Docker hosting service at one of these providers, Tutum: https://www.tutum.co/, dotCloud: https://cloud.docker.com/, or use the Container Engine system with the Google Cloud Provider: https://cloud.google.com/container-engine/
+Here a link to Chef.io information on using Chef for containers: https://docs.chef.io/containers.html
+Here’s where you can read about the knife-container plugin: https://github.com/chef/knife-container
+Find the knife-docker plugin on Github at this line: https://github.com/ema/knife-docker
+Download and install the Docker Toolbox from this site: https://www.docker.com/products/docker-toolbox
+Here is an interesting Ubuntu base image for your containers: https://github.com/phusion/baseimage-docker
+Here is another interesting base image container: https://github.com/phusion/passenger-docker
+Read a very through tutorial on using Docker here: http://www.dedoimedo.com/computers/docker-networking.html and here: http://www.dedoimedo.com/computers/docker-guide.html
+
+
+Summary
+--------

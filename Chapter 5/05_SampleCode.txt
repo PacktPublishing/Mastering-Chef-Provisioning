@@ -1,0 +1,691 @@
+***********************************************************
+Chef Provisioning
+Chapter 5
+Provisioning in the Traditional Data Center
+Example Code and References
+***********************************************************
+
+-------------------
+VMware Provisioning
+-------------------
+
+Installing the knife-vsphere plugin
+-----------------------------------
+Here is the command:
+chef gem install knife-vsphere
+
+Once you’ve executed the gem install, you need to configure your knife.rb file. So edit your file with the command:
+vi ~/chef-repo/.chef/knife.rb
+
+Add the following lines to you knife file, replacing the values with values appropriate to your vSphere environment.
+knife[:vsphere_host] = 'vcenter-hostname'
+knife[:vsphere_user] = 'privileged username'
+knife[:vsphere_pass] = 'your password'
+knife[:vsphere_dc] = 'your-datacenter'
+
+Here are the values I’ve used in my knife.rb file:
+knife[:vsphere_host] = 'vcenter6.nat.local.net'
+knife[:vsphere_user] = 'earlwaud'
+knife[:vsphere_pass] = '1Password'
+knife[:vsphere_dc] = 'SanDiego'
+
+So the knife-vsphere plugin provides the ability to use a base64 encoded version.  To do that you would need to prepend the tag “base64:” to your password value string.  That would look something like this:
+knife[:vsphere_pass] = 'base64:Yk2nZuJwHp=='
+
+This are usually due to certificate errors, and you can configure your knife.rb file to just ignore these errors with the additional setting:
+knife[:vsphere_insecure] = true
+
+The command you will use for this check is:
+knife vsphere template list
+
+Another query you will want to try is to list out the available datastores.  Use this command:
+knife vsphere datastore list
+
+Similarly you can get a list of several object types such as hosts, vm, cluster, folder, pool, and vlan by issuing a command in the same format:
+knife vsphere hosts list
+knife vsphere vm list
+knife vsphere cluster list
+knife vsphere vlan list
+
+Provisioning VMs using the knife-vsphere plugin
+-----------------------------------------------
+Starting out with baby steps, here is an example of a simple knife command to clone a VM template to create a new VM:
+knife vsphere vm clone api_vm01 \
+    --template centos6-template \
+    --cspec centos6 \
+    -V
+
+Here is another example of using the knife-vsphere plugin to provision a VM:
+knife vsphere vm clone api_vm02 \
+    --template centos6-template \
+    --cspec centos6 \
+    --ccpu 1 \
+    --cram 2 \
+    --dest-folder Public \
+    --datastore esxi6-01-datastore1 \
+    --resource-pool Production \
+    --annotation "This VM was provisioned using the knife-vsphere plugin.
+The VM is owned by Earl Waud" \
+    --start \
+    -V
+
+For this example I am using ssh user credentials, so the new Knife command looks like this:
+knife vsphere vm clone api_vm03 \
+    --template "centos6-template" \
+    --cspec centos6 \
+    --ccpu 1 \
+    --cram 2 \
+    --dest-folder Public \
+    --datastore esxi6-01-datastore1 \
+    --resource-pool "Development" \
+    --annotation "This VM is owned by Earl Waud." \
+    --start \
+    --node-name api_vm03 \
+    --bootstrap \
+    --bootstrap-protocol ssh \
+    --ssh-user centos \
+    --ssh-password password \
+    --ssh-port 22 \
+    --run-list “recipe[base]” \
+    -V
+
+Cleaning up our vSphere and Chef environments
+---------------------------------------------
+For example if we want to power off a VM we can issue a command in this format:
+knife vsphere vm state <VM NAME> --state off
+
+For example, if we want to power off the VM we provisioned above, we can use the command:
+knife vspere vm state api_vm03 –state off
+
+Once we are completely finished with our VM, we can remove them from vCenter by issuing a delete command. The command takes the form of:
+knife vsphere vm delete <VM NAME>
+
+As an example of using this command, if we want to delete the VM we recently provisioned we can issue the command:
+knife vsphere vm delete api_vm03
+
+Using Chef with VMware and Vagrant
+----------------------------------
+Here are the commands to install and license the Fusion plugin:
+vagrant plugin install vagrant-vmware-fusion
+vagrant plugin license vagrant-vmware-fusion license.lic
+
+And here are the commands to install and license the Workstation plugin (should be run from a command prompt with Administrator privileges):
+vagrant plugin install vagrant-vmware-workstation
+vagrant plugin license vagrant-vmware-workstation license.lic
+
+The license.lic parameter in these commands is the file name (and path) to the downloaded plugin license key file.
+You can confirm that the plugin and license were successfully deployed by issuing the command
+vagrant plugin list
+
+Here is the command: 
+vagrant box add centos-5.10 https://dl.dropboxusercontent.com/s/r5okkx8330h3tzh/vagrant-centos-5.10-x86_64.box
+
+This will download the VM box and deploy it in your VMware Workstation environment. The box is placed into a common Vagrant cache area so that you won’t need to download the box file each time you deploy a new environment.  You can see a list of the boxes that have been downloaded and are stored in the cache with the command:
+vagrant box list
+
+Now you need to initialize your new project.  Issue the command:
+cd ~/chef-repo
+vagrant init centos-5.10
+
+Now we want to bring up our new Vagrant box with the command:
+vagrant up --provider vmware_workstation
+
+You can see a list of the templates that have been downloaded and are stored in the cache with the command:
+vagrant box list
+
+We now have a new VM running in our VMware Workstation system.  However, here is another case where we haven’t done anything with Chef yet.  So let’s go ahead and get rid of this environment with the command:
+vagrant destroy
+
+Here is what a simple Vagrant file looks like:
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = '2'
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = 'centos-5.10'
+
+  config.vm.network 'public_network'
+
+  config.vm.hostname = 'vagrant-vm01'
+
+  config.vm.provision :chef_client do |chef|
+    chef.chef_server_url = 'https://chefserver/organizations/sdearl'
+    chef.validation_client_name = 'sdearl-validator'
+    chef.validation_key_path = '/Users/earlwaud/chef-repo/.chef/sdearl-validator.pem'
+    chef.run_list = 'recipe[base] '
+    chef.validation_client_name = 'sdearl-validator'
+    chef.environment = 'production'
+  end
+end
+
+Just enter the following command:
+vagrant plugin install vagrant-butcher
+
+Here are the lines to add:
+config.butcher.client_key = '/Users/earlwaud/chef-repo/.vagrant/butcher/default-client.pem'
+config.butcher.enabled = true
+config.butcher.verify_ssl = false
+
+References
+----------
+You can read about the knife-vsphere plugin here: https://github.com/chef-partners/knife-vsphere
+How to guide on setting up a vSphere 6 lab in VMware Workstation: http://www.enterprisedaddy.com/building-a-home-lab-for-vmware-vsphere-6-0/
+Learn more about the many Chef + VMware integrations at this URL: https://www.chef.io/solutions/vmware/
+You can read about the knife-vcair plugin here: https://github.com/chef-partners/knife-vcair
+If you are working directly with ESX instead of vSphere, you might like the info for the knife-esx plugin which can be found here: https://github.com/maintux/knife-esx
+Finally, if you want to work with VMware Fusion or VMware Workstation you can integrate with Vagrant and the corresponding plugin.  Learn more here: https://www.vagrantup.com and https://www.vagrantup.com/docs/vmware/installation.html
+You can find a variety of Vagrant base boxes at this URL: http://www.vagrantbox.es
+If you are interested in making your own templates or boxes for Vagrant, there is an excellent tutorial found here: https://blog.engineyard.com/2014/building-a-vagrant-box
+You can read about the Vagrant Plugin Butcher here: https://github.com/cassianoleal/vagrant-butcher
+
+----------------------
+OpenStack provisioning
+----------------------
+
+Setup a DevStack OpenStack all-in-one environment
+-------------------------------------------------
+
+Deploy the DevStack Host VM
+---------------------------
+In addition I would recommend installing the following: ntp, landscape-common (for the landscape-sysinfo command), htop (it’s just a better top).  Here is the command:
+sudo apt-get install ntp landscape-common htop
+
+Save your new settings and then to make sure the settings take affect open up a terminal window and restart the network manager with the command:
+sudo service network-manager restart
+
+Download and install DevStack
+-----------------------------
+Open up a Terminal session on your host VM and issue the command:
+sudo apt-get install git -y
+
+I would recommend doing an update next with the command:
+sudo apt-get update
+
+Then issue the following git command to clone the DevStack repo.
+cd ~/
+git clone https://git.openstack.org/openstack-dev/devstack –b stable/kilo
+
+Next, we want to create a configuration file to help DevStack configure OpenStack correctly for our Host VM.  
+Create and edit a file named local.conf…
+cd ~/
+touch devstack/local.conf
+vi devstack/local.conf
+
+Enter the following data into the new file:
+[[local|localrc]]
+
+# Passwords (modify to match your VM)
+ADMIN_PASSWORD=password
+
+DATABASE_PASSWORD=$ADMIN_PASSWORD
+RABBIT_PASSWORD=$ADMIN_PASSWORD
+SERVICE_PASSWORD=$ADMIN_PASSWORD
+SERVICE_TOKEN=$ADMIN_PASSWORD
+
+# Branches
+KEYSTONE_BRANCH=stable/kilo
+NOVA_BRANCH=stable/kilo
+NEUTRON_BRANCH=stable/kilo
+SWIFT_BRANCH=stable/kilo
+GLANCE_BRANCH=stable/kilo
+CINDER_BRANCH=stable/kilo
+HEAT_BRANCH=stable/kilo
+TROVE_BRANCH=stable/kilo
+HORIZON_BRANCH=stable/kilo
+SAHARA_BRANCH=stable/kilo
+
+# Host VM IP address (replace with the IP of your VM)
+HOST_IP=192.168.157.134
+SERVICE_HOST=192.168.157.134
+MYSQL_HOST=192.168.157.134
+RABBIT_HOST=192.168.157.134
+GLANCE_HOSTPORT=192.168.157.134:9292
+
+# domain (should be the same as chef server domain)
+# dhcp_domain=nat.local.net
+
+# Enable the console auth service
+enable_service n-cauth
+
+# Disable tempest service to save stack time
+disable_service tempest
+
+# Do not use Nova-Network
+disable_service n-net
+
+# Enable Neutron
+ENABLED_SERVICES+=,q-svc,q-dhcp,q-meta,q-agt,q-l3
+
+# Neutron options
+Q_USE_SECGROUP=True
+Q_L3_ENABLED=True
+Q_USE_PROVIDERNET_FOR_PUBLIC=True
+Q_AGENT=linuxbridge
+
+# IP range for fixed and floating IP assignments
+FIXED_RANGE="10.0.0.0/24"
+PUBLIC_INTERFACE=eth0
+FLOATING_RANGE="192.168.157.0/24"
+Q_FLOATING_ALLOCATION_POOL=start=192.168.157.250,end=192.168.157.254
+PUBLIC_NETWORK_GATEWAY="192.168.157.1"
+
+# Linuxbridge Settings
+LB_PHYSICAL_INTERFACE=eth0
+LB_INTERFACE_MAPPINGS=default:eth0
+PUBLIC_PHYSICAL_NETWORK=default
+
+# Enable Logging
+LOGFILE=/opt/stack/logs/stack.sh.log
+VERBOSE=True
+LOG_COLOR=True
+SCREEN_LOGDIR=/opt/stack/logs
+
+Change into the devstack folder and launch DevStack with the commands:
+cd devstack
+./stack.sh
+
+Download the Demo project rc file and apply it
+----------------------------------------------
+
+Add the security rules to allow ping and ssh traffic
+----------------------------------------------------
+Now we have the rc to configure the environment for adding our security rules.  Open up a terminal window and, assuming you saved the rc file in your Downloads folder, issue the following command: 
+source ~/Downloads/demo-openrc.sh
+
+You will be prompted for your password.  Again, enter the password you used in the local.conf file (the same one shown at the end of your successful run of ./stack.sh).
+Shortly you will be entering two commands, one for the ICMP protocol for ping, and the other for tcp protocol on port 22 for the ssh commands.
+The two commands will be in this format:
+neutron security-group-rule-create \
+  <SECURITY GROUP ID> \
+  --direction ingress --ethertype IPv4 --protocol icmp \
+  --remote-ip-prefix 0.0.0.0/0
+
+neutron security-group-rule-create \
+  <SECURITY GROUP ID> \
+  --direction ingress --ethertype IPv4 --protocol tcp \
+  --port-range-min 22 --port-range-max 22 \
+  --remote-ip-prefix 0.0.0.0/0
+
+However, you’ll first need to get the <SECURITY GROUP ID> value for your DevStack’s default security group to use in the commands.  To get the security group id you will issue the nova secgroup-list command.  The command is: 
+nova secgroup-list
+
+neutron security-group-rule-create \
+  a209661a-cb15-4cc7-b42f-45a5c507aba0 \
+  --direction ingress --ethertype IPv4 --protocol icmp \
+  --remote-ip-prefix 0.0.0.0/0
+neutron security-group-rule-create \
+  a209661a-cb15-4cc7-b42f-45a5c507aba0 \
+  --direction ingress --ethertype IPv4 --protocol tcp \
+  --port-range-min 22 --port-range-max 22 \
+  --remote-ip-prefix 0.0.0.0/0
+
+I am using a DNS local DNS address of 192.168.157.101 and a public DNS address of 8.8.8.8.  So the command for doing that is: 
+neutron subnet-update private-subnet --dns-nameservers list=true 192.168.157.101 8.8.8.8
+
+Since I was rebuilding my DevStack a lot during testing (and writing this book), I created a small script to add rules. The script still needs to source your demo_openrc.sh file, so it will ask for your password, but once that’s done, the script to create the security group rules and inject the public DNS server:
+#!/bin/bash
+#new_rules.sh
+
+# load the demo project access settings
+source ~/Downloads/demo-openrc.sh
+
+# capture the ID for the “default” security group
+ID="$(nova secgroup-list | grep default | awk -F"|" '{ print $2 }')"
+
+# add a rule for ping
+neutron security-group-rule-create $ID \
+  --direction ingress --ethertype IPv4 \
+  --protocol icmp --remote-ip-prefix 0.0.0.0/0
+
+# add a rule for ssh
+neutron security-group-rule-create $ID \
+  --direction ingress --ethertype IPv4 \
+  --protocol tcp --port-range-min 22 --port-range-max 22 \
+  --remote-ip-prefix 0.0.0.0/0
+
+# add a rule for dns
+neutron security-group-rule-create $ID \
+  --direction ingress --ethertype IPv4 \
+  --protocol tcp --port-range-min 53 --port-range-max 53 \
+  --remote-ip-prefix 0.0.0.0/0
+
+# add a public DNS to the private instances
+neutron subnet-update private-subnet --dns-nameservers list=true 192.167.157.101 8.8.8.8
+
+Install the knife OpenStack plugin
+----------------------------------
+To accomplish this, back on your chef development workstation, change directories to your chef-repo folder, and issue the chef gem install command, like this:
+cd ~/chef-repo
+sudo chef gem install knife-openstack
+
+Setting up the DevStack public key
+----------------------------------
+For simplicity of my examples, I am copying the public key file to my chef-repo folder.
+cp ~/Downloads/admin.pem ~/chef-repo/
+
+Issuing the following command will take care of this step:
+chmod 400 ~/chef-repo/admin.pem
+
+Allocating some floating IP addresses to the project
+----------------------------------------------------
+
+Configuring the knife-openstack plugin knife settings
+-----------------------------------------------------
+You will want to capture the values show in the User Credentials dialog as we are going to need them for our knife.rb file. Once you have copied the values, you will want to edit your knife.rb file:
+cd ~/chef-repo
+vi .chef/knife.rb
+
+Go to the end of the file and add the following values, replacing the Project ID and Authentication URL values with the data from your User Credentials dialog. Here are my entries:
+knife[:openstack_auth_url] = 'http://192.168.157.134:5000/v2.0/tokens'
+knife[:openstack_username] = 'admin'
+knife[:openstack_password] = 'password'
+knife[:openstack_tenant] = 'demo'
+knife[:openstack_tenant_id] = 'ae3bbe1e367f44189424511bd8c123a0'
+knife[:openstack_region] = 'RegionOne'
+
+Here for reference is the full knife.rb file that contains settings for knife, for the editor integration, the ec2 plugin, and for the openstack plugin:
+# See https://docs.getchef.com/config_rb_knife.html for more information on knife configuration options
+
+current_dir = File.dirname(__FILE__)
+log_level                :info
+log_location             STDOUT
+node_name                'earlwaud'
+client_key               "#{current_dir}/earlwaud.pem"
+validation_client_name   'sdearl-validator'
+validation_key           "#{current_dir}/sdearl-validator.pem"
+chef_server_url          'https://chefserver/organizations/sdearl'
+cookbook_path            ["#{current_dir}/../cookbooks"]
+#ssl_verify_mode   :verify_none
+knife[:editor] = '/Applications/Sublime\ Text.app/Contents/SharedSupport/bin/subl -w'
+knife[:aws_credential_file] = '/Users/earlwaud/.aws/credential_file'
+
+#knife-vsphere
+knife[:vsphere_host] = 'vcenter6.nat.local.net'
+knife[:vsphere_user] = 'earlwaud'
+knife[:vsphere_pass] = '1Password'
+knife[:vsphere_dc] = 'SanDiego'
+knife[:vsphere_insecure] = true
+
+#knife-openstack
+knife[:openstack_auth_url] = 'http://192.168.157.134:5000/v2.0/tokens'
+knife[:openstack_username] = 'admin'
+knife[:openstack_password] = 'password'
+knife[:openstack_tenant] = 'demo'
+knife[:opnestack_tenant_id] = '181735be7b8a4a0c80c68200dffabe77'
+knife[:openstack_region] = 'RegionOne'
+knife[:openstack_ssh_key_id] = 'admin'
+
+With our updated knife.rb file, we should be able to successful communicate with our OpenStack environment using knife. We can test this integration easily with the following commands:
+cd ~/chef-repo
+knife openstack server list
+
+Give this a try now:
+knife openstack image list
+
+Adding a CentOS instance image to provision
+-------------------------------------------
+The exact name of the image I downloaded for the examples is: 
+CentOS-6-x86_64-GenericCloud-1508.qcow2
+
+Provisioning a new instance
+---------------------------
+Here is a command that I used to provision a new OpenStack instance (and deploy chef-client onto to it, and so on.):
+knife openstack server create \
+--availability-zone "nova" \
+--image "centos6" \
+--flavor "m1.small" \
+--sudo \
+--bootstrap-protocol ssh \
+--ssh-user "centos" \
+--identity-file "/Users/earlwaud/chef-repo/admin.pem" \
+--openstack-ssh-key-id admin \
+--openstack-floating-ip \
+--run-list "recipe[base]" \
+--node-name api_vm01 \
+-V
+
+References
+----------
+Learn more about DevStack at this link: http://docs.openstack.org/developer/devstack/
+Download the Ubuntu Desktop install bits here: http://www.ubuntu.com/download/desktop
+Follow the knife-openstack plugin repo here: https://github.com/chef/knife-openstack
+Follow the status of the “Forbidden error” here: https://bugs.launchpad.net/devstack/+bug/1243075
+Download your OpenStack instance images from here: http://docs.openstack.org/image-guide/obtain-images.html
+Read about the OpenStack configuration input settings here: http://docs.openstack.org/developer/devstack/configuration.html
+Here is a nice OpenStack command cheat sheet: http://docs.openstack.org/user-guide/cli_cheat_sheet.html
+
+------------------
+Network automation
+------------------
+
+Automating juniper devices
+--------------------------
+You will need a specific bootstrap file for this process. You can use wget to download the bootstrap file with this command:
+wget https://github.com/opscode/junos-chef/blob/master/bootstrap/junos-minimal.erb
+
+Once you have the bootstrap file, you will execute the knife bootstrap command. It will take the format of:
+knife bootstrap <SWITCH IP ADDRESS> --template_file junos-minimal.erb -x root
+
+For example if the IP address of your switch is 172.0.0.10 you would use the command:
+knife bootstrap 172.0.0.1 --template_file junos-minimal.erb -x root
+
+You can do this with the following commands:
+knife cookbook site download netdev
+tar zxvf ./netdev-2.0.0.tar.gz -C cookbooks
+mkdir ~/chef-repo/cookbooks/netdev/recipes
+
+Now you need to create the recipes you will use to configure the switch. Here are some example recipes. Create a create_vlan recipe.
+vi ~/chef-repo/cookbooks/netdev/recipes/create_vlan.rb
+netdev_vlan 'public' do
+    vlan_id 100
+    description 'public'
+    action :create
+end
+netdev_vlan 'nonpublic' do
+    vlan_id 200
+    description 'nonpublic'
+    action :create
+end
+
+Create a create_access recipe.
+vi ~/chef-repo/cookbooks/netdev/recipes/create_access.rb
+netdev_interface 'xe-0/0/14' do
+    description 'access interface 14'
+    action :create
+end
+netdev_interface 'xe-0/0/15' do
+    description 'access interface 15'
+    action :create
+end
+
+netdev_l2_interface 'xe-0/0/14' do
+    description 'belongs to public VLAN'
+    untagged_vlan 'public'
+    vlan_tagging false
+    action :create
+end
+netdev_l2_interface 'xe-0/0/15' do
+    description 'belongs to nonpublic VLAN'
+    untagged_vlan 'nonpublic'
+    vlan_tagging false
+    action :create
+end
+
+Create a create_uplink recipe:
+vi ~/chef-repo/cookbooks/netdev/recipes/create_uplink.rb
+netdev_l2_interface 'xe-0/0/10' do
+    action :delete
+end
+netdev_l2_interface 'xe-0/0/11' do
+    action :delete
+end
+
+netdev_lag 'ae0' do
+    links ['xe-0/0/10', 'xe-0/0/11']
+    minimum_links 1
+    lacp 'active'
+    action :create
+end
+
+netdev_l2_interface 'ae0' do
+    description 'Uplink interface'
+    tagged_vlans ['public', 'nonpublic']
+    vlan_tagging true
+    action :create
+end
+
+Now that you have the new recipes, you need to upload them to the Chef server with the commands:
+cd ~/chef-repo
+knife cookbook upload netdev
+
+If you are using the knife command you would enter the following:
+knife node edit qfx5100
+"run_list": ["recipe[netdev::create_vlan]","recipe[netdev::create_access]","recipe[netdev::create_uplink]"
+
+Here is the command:
+/opt/sdk/chef/bin/ruby /opt/sdk/chef/bin/chef-client -c /var/db/chef/client.rb
+
+Automating Cisco Systems
+------------------------
+The first one is installed when you install the ChefDK, the second you will need to install yourself. Use the commands:
+cd ~/chef-repo
+chef gem install chef-provisioning-ssh
+
+Now on the Cisco device you need to do some setup.  Here are the steps:
+# Enter the guestshell environment using the 'guestshell' command
+guestshell
+
+# If using the management interface you must enter the management namespace
+sudo su -
+chvrf management
+
+# Set up hostname and DNS configuration
+hostname n3k
+
+echo 'n3k' > /etc/hostname
+
+cat >> /etc/resolv.conf << EOF
+nameserver 10.0.0.202
+domain mycompany.com
+search mycompany.com
+EOF
+
+configure terminal
+  feature ssh
+  username devops password password role network-admin
+  username devops shelltype guestshell
+end
+
+For now, just create an input file named chef_provisioning.rb and add the following as contents of the file:
+require 'chef/provisioning/ssh_driver'
+
+with_driver 'ssh'
+
+with_chef_server 'https://chefserver.example.com/organizations/chef',
+  client_name: 'chefuser',
+  signing_key_filename: '/etc/chef/chefuser.pem'
+
+with_machine_options transport_options: {
+  ip_address: '10.100.100.1',
+  username: 'devops',
+  options: {
+    # BASH-SHELL options - uncomment if installing to bash-shell
+    # prefix: 'sudo ip netns exec management ',
+
+    # GUESTSHELL options - uncomment if installing to guestshell
+    prefix: '/isan/bin/guestshell sudo ip netns exec management ',
+    scp_temp_dir: '/bootflash',
+  },
+  ssh_options: {
+    password: 'password',
+  },
+}
+
+machine "n3k_100_1.example.com" do
+  action [:ready, :setup, :converge]
+  # Copy the trusted certificate to the newly provisioned node
+  file '/Users/earlwaud/chef-repo/.chef/trusted_certs/chefserver.crt’
+  converge true
+end
+
+Now run the chef-client command:
+chef-client -z chef_provisioning.rb
+
+However, you may encounter one of the following errors:
+Unable to Connect … or … 401 “Unauthorized”
+In the first case you may have a stale SSH key in your ~/.ssh/known_hosts file. You can remove it with the ssh-keygen -R <hostname or IP> command, and then try again.
+In the second case, you probably have a time sync issue between your system and the Cisco system.
+
+Download and install the cookbook with these commands:
+cd ~/chef-repo
+knife cookbook site download cisco-cookbook
+tar zxvf ./cisco-cookbook-1.1.2.tar.gz -C cookbooks
+
+Automating F5 LTMs
+------------------
+Start by extracting the cookbook. Use the commands: 
+cd ~/chef-repo
+tar zxvf ./f5-node-initiator.tgz -C cookbooks
+
+So we need to edit the metadata.rb file to add that attribute:
+cd ~/chef-repo
+vi ./cookbooks/f5-node-initiator/metadata.rb
+
+And a line at the top like this:
+name             'f5-node-initiator'
+
+Save the file. Now we need to upload the cookbook to our chef server. Use the following commands:
+cd ~/chef-repo
+knife cookbook upload f5-node-initiator
+
+Create or edit your web_server.rb file accordingly:
+cd ~/chef-repo
+vi ./roles/web_server.rb
+
+Update the file contents to be:
+name 'webserver'
+description 'The Web Server Role'
+run_list([
+    'recipe[base] ',
+    'recipe[apache2] ',
+    'recipe[f5-node-initiator] '
+])
+default_attributes({
+  'bigip' => {
+      'address' => '10.0.0.245',
+      'user' => 'admin',
+      'pass' => 'password',
+      'pool_name' => 'chef_test_http_pool'
+  }
+})
+override_attributes({
+  'base_name' => 'Earl Waud',
+  'user_name' => 'Earl Waud',
+})
+
+Replace the address, user, pass, and pool_name values with values appropriate for your environment. Save the file. Now we need to upload the role to our Chef server. Issue the following commands to upload the role:
+cd ~/chef-repo
+knife role from file roles/web_server.rb
+
+For example if we have a web server node named web01 we would issue the following commands:
+cd ~/chef-repo
+knife node run_list add web01 "role[webserver]"
+
+References
+----------
+Check out the junos-chef repo for Juniper switch configuration with Chef: https://github.com/Juniper/junos-chef
+Learn about Chef Junos integration at the Chef.io site: https://docs.chef.io/junos.html
+Read about the QFX5100 switches from Juniper: http://www.juniper.net/us/en/products-services/switching/qfx-series/qfx5100/
+Here is the netdev repo on GitHub: https://github.com/chef-partners/netdev
+Here is the Cisco cookbook repo on GitHub: https://github.com/cisco/cisco-network-chef-cookbook?files=1
+Here is the manual chef-client install instructions: https://github.com/cisco/cisco-network-chef-cookbook/blob/develop/docs/README-agent-install.md
+Here is the automated chef-client install instructions: https://github.com/cisco/cisco-network-chef-cookbook/blob/develop/docs/README-chef-provisioning.md
+Learn about the Chef to NX-OS integration here: http://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/7-x/programmability/guide/b_Cisco_Nexus_9000_Series_NX-OS_Programmability_Guide_7x/b_Cisco_Nexus_9000_Series_NX-OS_Programmability_Guide_7x_chapter_01110.html
+Read an excellent article on automating WebApp deployments with Chef: https://devcentral.f5.com/articles/automating-web-app-deployments-with-opscode-chef-and-icontrol
+Take a deep look at the F5 Big IP cookbook that was released into open source by Target: https://github.com/target/f5-bigip-cookbook
+Download the F5-cookbook from the chef supermarket at this link: https://supermarket.chef.io/cookbooks/f5/versions/0.2.4
+
+-------
+Summary
+-------

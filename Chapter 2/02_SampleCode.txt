@@ -1,0 +1,269 @@
+***********************************************************
+Chef Provisioning
+Chapter 2
+Knife Tooling and Plugins
+Example Code and References
+***********************************************************
+
+----------
+Knife help 
+----------
+
+References
+----------
+There is an excellent help reference available on GitHub that takes the built in syntax help information to the next level. You can download and print out your own reference guide here: https://github.com/chef/quick-reference.
+
+-----------------
+Knife Subcommands
+-----------------
+
+Knife Bootstrap
+---------------
+Here is an example knife bootstrap command that I used to bootstrap a opscode-centos-7.1 vagrant node running on VirtualBox:
+knife bootstrap 127.0.0.1 --node-name vagrant-node01 --ssh-port 2222 --ssh-user vagrant --identity-file ~/chef-repo/.vagrant/machines/default/virtualbox/private_key --sudo
+
+Knife Node
+----------
+
+Knife Diff
+----------
+
+Knife Exec
+----------
+Here is what a Knife Exec command to move all nodes in the “_default” environment into the “development” environment:
+knife exec -E 'nodes.transform("chef_environment:_default") { |n| n.chef_environment("development") }'
+If for example, you want to add the recipe “base” to all of your nodes in production, you could issue a Knife Exec command like this:
+knife exec -E 'nodes.transform("chef_environment:production") {|n| puts n.run_list << "recipe[base]"; n.save }'
+
+Issue the command without the n.save as a test run
+Issue the command like this first to test the results:
+knife exec -E 'nodes.transform("chef_environment:production") {|n| puts n.run_list << "recipe[base]"}'
+
+Then issue the command again with the “n.save” this to apply the changes:
+knife exec -E 'nodes.transform("chef_environment:production") {|n| puts n.run_list << "recipe[base]"; n.save }'
+
+Knife SSH
+---------
+For example if you want to run the uptime command on all of the Nodes in the production environment you can issue a command like this one:
+knife ssh "chef_environment:production" "uptime" -p 2222 -x earl -P MyPW99
+
+For example, you can check the status of the ntpd service on all your production nodes with a command something like this:
+knife ssh -p 2222 -x earl -P MyPW99 -m "`knife exec -E "search(:node, 'chef_environment:production').each {|host| puts host[:hostname] }" | xargs`" '/etc/init.d/ntpd status'
+
+Knife Search
+------------
+If you want to see a list of all the Nodes in your Chef Server you can issue the following command:
+knife search node '*:*' -i
+
+Remember that the default Index is “node” so the same results will be delivered if you issue the command like this:
+knife search '*:*' -i
+
+Without the optional “-i” the Knife Search command will return the Node object details, and there are varying levels of detail you can have the search command return. Here are the options:
+• -i parameter: just the node name, no object details
+• no parameter: short list of the object’s details
+• -m parameter: medium list of the object’s details
+• -l parameter: full list of all of the object’s details 
+
+The following command will return the IP address of all the nodes in the Chef Server
+knife search node '*:*' -a server_ip
+
+Say that you need to see a list of all of the Nodes that are in the 192.168.112.x subnet. You can issue the following Knife Search command to create the list:
+knife search node 'server_ip*:192.168.112.*' –i
+
+References
+----------
+You can read more about the Knife command and all of its subcommands on the Chef site here: https://docs.chef.io/knife.html
+Here is a link to the Chef documentation on Knife Search: https://docs.chef.io/knife_search.html
+Here is a link to the Chef bootstrapping data: https://docs.chef.io/knife_bootstrap.html
+
+---------------------------
+Knife to editor integration 
+---------------------------
+
+Using the “Wait” option
+-----------------------
+Each editor has its own way of indicating a desire to wait for exit before returning control.  The best way to configure your editor to use its wait option is to add the parameter to the editor a line in your ~/.chef/knife.rb file.  When needed, the setting will take the format
+knife[:editor] = ‘<path to your editor> <wait option>’
+
+Does my editor require the wait option?
+---------------------------------------
+On my OS X system, I use Sublime Text for my editor of choice for the interactive Knife commands.  The knife.rb file entry I use looks like this:
+knife[:editor] = '/Applications/Sublime\ Text.app/Contents/SharedSupport/bin/subl -w'
+
+References
+----------
+You can get the Sublime Text editor here: http://www.sublimetext.com/2
+You can get the Atom editor here: https://atom.io/
+You can get the TextMate (Mac OS only) here: https://macromates.com/download
+
+--------------------
+Knife Windows plugin
+--------------------
+
+Install the Knife Windows plugin
+--------------------------------
+The command to do this is:
+chef gem install knife-windows
+
+Bootstrap a Windows node
+------------------------
+Here is an example of using the WinRM method to bootstrap node named “node03”. 
+knife bootstrap windows winrm node03 -p 55985 -x Administrator -P MyPW99 -r 'recipe[winbase]'
+
+Search for Windows node data
+----------------------------
+Starting off with something easy, say we need to create a list of all the windows nodes in production.
+knife search node 'chef_environment:production && os:windows' -i
+
+We can see the values with a command like this:
+knife search node 'chef_environment:production && os:windows' -a kernel.cs_info.domain
+
+That is, a command like this will not work for us:
+knife search node 'chef_environment:production && os:windows && kernel.cs_info.domain:WORKGROUP' -i 
+
+We can use nested attributes in the find of a Knife Exec command, something like this:
+knife exec -E 'nodes.find("chef_environment:production && os:windows && kernel.cs_info.domain:WORKGROUP"){|n| puts "#{n.name}"}'
+
+References
+----------
+Here is a link to the Knife Windows plugin on the Chef site: https://docs.chef.io/plugin_knife_windows.html
+Here is the link to the GitHub repo for the Knife Windows plugin: https://github.com/chef/knife-windows
+
+----------------
+Knife EC2 plugin
+---------------- 
+
+Installing the Knife EC2 plugin
+-------------------------------
+Simply issue the command:
+chef gem install knife-ec2
+
+However, if you still want to add the Amazon data to your knife.rb file it should be added in this format.
+knife[:aws_access_key_id] = "Your AWS Access Key ID"
+knife[:aws_secret_access_key] = "Your AWS Secret Access Key"
+
+If instead, you want to use the safer AWS credential file method, decide on or create a location to store the credential file, and then create a new file entering in the credential data in the format shown below.  Note that you do not enclose your ID or Key in any kind of quotes like you would if you are adding them directly to the knife.rb file:
+[default]
+aws_access_key_id = Your AWS Access Key ID
+aws_secret_access_key = Your AWS Secret Access Key
+
+Now update your knife.rb file to point to the credential file by adding a line like this:
+knife[:aws_credential_file] = "/path/to/credentials/file"
+
+You can issue a command like this:
+knife ec2 server list -r us-west-2
+
+If you want to save yourself the extra typing needed to add the “-r <region>” to all of your EC2 plugin commands, you can add an entry into your knife.rb file to specify a “default” region.  The entry will look like this: 
+knife[:region] = "us-west-2"
+
+Create an EC2 instance
+----------------------
+A “simple” version of the command might look something like this:
+knife ec2 server create --node-name ec2-node08 \
+   --groups=launch-wizard-1 \
+   --region=us-west-2 \
+   --availability-zone=us-west-2a \
+   --image=ami-5189a661 \
+   --server-connect-attribute=public_ip_address \
+   --flavor=t2.micro \
+   --ssh-user=ubuntu \
+   --ssh-key=my_chef_service \
+   --identity-file=/Users/earlwaud/.aws/my_chef_service.pem \
+   --run-list=recipe['base']
+
+Bootstrap an existing EC2 instance
+----------------------------------
+To bootstrap an existing EC2 instance, you will issue a command much like the one used to bootstrap any other server. It might look something like this:
+knife bootstrap 54.213.235.40 \
+   --node-name my_old_ec2_node \
+   --ssh-user ubuntu \
+   --identity-file /Users/earlwaud/.aws/my_chef_service.pem \
+   --sudo
+
+Deleting EC2 instances
+----------------------
+Eventually, you are going to want to delete some instances.  You can use the knife EC2 plugin for handling this task.  The command you use is knife ec2 server delete --node-name <node-name> --purge.   The –purge option tells knife that you also want to remove the corresponding node and client from the Chef Server.
+
+References
+----------
+Here is the link to the Chef Knife EC2 plugin page: https://docs.chef.io/plugin_knife_ec2.html
+Another excellent reference can be found on the GitHub page for the Knife EC2 plugin: https://github.com/chef/knife-ec2
+Here’s the link to the Knife Cloud plugins: https://docs.chef.io/plugin_knife.html
+Here is the GitHub Knife EC2 plugin link: https://github.com/chef/knife-ec2
+There is an interesting blog post by Mark Birbeck on using the Knife EC2 plugin to create and manage EC2 instances without a Chef Server: http://markbirbeck.com/2012/03/16/using-knife-to-launch-ec2-instances-without-a-chef-server/
+
+--------------------------
+Creating new Knife plugins
+--------------------------
+
+The basic plugin file format
+----------------------------
+A custom knife plugin begins be creating a new plugin ruby file. The plugin file has to have a specific format. That format in its simplest form looks like this:
+require 'chef/knife'
+
+module ModuleName
+  class SubclassName < Chef::Knife
+
+  deps do
+    require 'chef/dependency'
+  end
+
+  banner ’knife subcommand argument VALUE (options)’
+
+  option :name_of_option,
+    :short => "-l VALUE",
+    :long => "--long-option-name VALUE",
+    :description => "The description for the option.",
+    :proc => Proc.new { code_to_run }
+    :boolean => true | false
+    :default => default_value
+
+  def run
+  end
+end
+
+Once you have created the plugin’s ruby file, you have the choice of saving the file to one of two places.  You can either save it within your chef-repo, in a location like ~/chef-repo/.chef/plugins/knife/shinnynewplugin.rb.  Or, you can save the file in a location outside of any chef-repo, which would be like ~/.chef/plugins/knife/shinnynewplugin.rb.  This second option, outside of any chef-repo, is where I would recommend placing the file.  Remember that file name must have the “.rb” extension.
+
+Example - A simpler EC2 Create Sever plugin
+-------------------------------------------
+Anyway, here is the example code:
+require 'chef/knife'
+
+module EasyCreate
+  class EasyCreate < Chef::Knife
+    deps do
+    end
+
+    banner 'knife easy create NODENAME'
+
+    def run
+      puts "node-name #{name_args.first}"
+
+      cmd = "knife ec2 server create \
+         --node-name #{name_args.first} \
+         --groups=launch-wizard-1 \
+         --region=us-west-2 \
+         --availability-zone=us-west-2a \
+         --image=ami-5189a661 \
+         --server-connect-attribute=public_ip_address \
+         --flavor=t2.micro \
+         --ssh-user=ubuntu \
+         --ssh-key=my_chef_service \
+         --identity-file=/Users/earlwaud/.aws/my_chef_service.pem\
+         --run-list=recipe['base']"
+
+      system( cmd )
+    end
+  end
+end
+
+Now when you want to create a new EC2 instance, you can issue a command like:
+knife easy create ec2-node10
+
+References
+----------
+Go here for the complete Custom Knife Plugins documentation: https://docs.chef.io/plugin_knife_custom.html
+
+-------
+Summary
+-------
